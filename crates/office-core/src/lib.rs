@@ -164,7 +164,11 @@ pub enum DynamicFieldKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum HeaderFooterItem {
     Text {
         id: String,
@@ -345,17 +349,14 @@ pub struct TextRun {
     pub hyperlink: Option<Hyperlink>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum BlockKind {
+    #[default]
     Paragraph,
-    Heading { level: u8 },
-}
-
-impl Default for BlockKind {
-    fn default() -> Self {
-        Self::Paragraph
-    }
+    Heading {
+        level: u8,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -445,18 +446,13 @@ pub struct TableBlock {
     pub style: TableStyle,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum ImageAlignment {
     Left,
+    #[default]
     Center,
     Right,
-}
-
-impl Default for ImageAlignment {
-    fn default() -> Self {
-        Self::Center
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -727,6 +723,10 @@ pub struct DocumentFragment {
     pub sections: Vec<DocumentSection>,
 }
 
+// Enum de comandos consumido por valor en `apply`. Sus variantes tienen
+// tamaños dispares por diseño; boxear cada variante grande complicaría todos
+// los sitios de construcción y `match` sin beneficio real en este flujo.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(
     tag = "type",
@@ -734,8 +734,13 @@ pub struct DocumentFragment {
     rename_all_fields = "camelCase"
 )]
 pub enum DocumentCommand {
-    SetTitle { title: String },
-    ReplaceBlockText { block_id: String, text: String },
+    SetTitle {
+        title: String,
+    },
+    ReplaceBlockText {
+        block_id: String,
+        text: String,
+    },
     ReplaceTextRange {
         block_id: String,
         start: usize,
@@ -768,21 +773,51 @@ pub enum DocumentCommand {
         #[serde(default)]
         style: Option<TextStylePatch>,
     },
-    DeleteText { block_id: String, start: usize, end: usize },
-    FormatText { block_id: String, start: usize, end: usize, style: TextStylePatch },
-    FormatDocumentRange { start: DocumentPoint, end: DocumentPoint, style: TextStylePatch },
-    SetBlockKind { block_id: String, kind: BlockKind },
-    SetBlockKindMany { block_ids: Vec<String>, kind: BlockKind },
-    SetParagraphStyle { block_id: String, style: ParagraphStylePatch },
-    SetParagraphStyleMany { block_ids: Vec<String>, style: ParagraphStylePatch },
-    SetList { block_ids: Vec<String>, list: Option<ListProperties> },
+    DeleteText {
+        block_id: String,
+        start: usize,
+        end: usize,
+    },
+    FormatText {
+        block_id: String,
+        start: usize,
+        end: usize,
+        style: TextStylePatch,
+    },
+    FormatDocumentRange {
+        start: DocumentPoint,
+        end: DocumentPoint,
+        style: TextStylePatch,
+    },
+    SetBlockKind {
+        block_id: String,
+        kind: BlockKind,
+    },
+    SetBlockKindMany {
+        block_ids: Vec<String>,
+        kind: BlockKind,
+    },
+    SetParagraphStyle {
+        block_id: String,
+        style: ParagraphStylePatch,
+    },
+    SetParagraphStyleMany {
+        block_ids: Vec<String>,
+        style: ParagraphStylePatch,
+    },
+    SetList {
+        block_ids: Vec<String>,
+        list: Option<ListProperties>,
+    },
     SplitBlock {
         block_id: String,
         offset: usize,
         new_block_id: String,
         new_run_id: String,
     },
-    MergeWithPrevious { block_id: String },
+    MergeWithPrevious {
+        block_id: String,
+    },
     AddParagraph {
         after_block_id: Option<String>,
         block_id: String,
@@ -790,18 +825,37 @@ pub enum DocumentCommand {
         #[serde(default)]
         section_id: Option<String>,
     },
-    RemoveBlock { block_id: String },
-    AddResource { resource: ImageResource },
-    UpdateTableCell { table_id: String, row_id: String, cell_id: String, text: String },
-    AddTableRow { table_id: String, after_row_id: Option<String>, row: TableRow },
-    RemoveTableRow { table_id: String, row_id: String },
+    RemoveBlock {
+        block_id: String,
+    },
+    AddResource {
+        resource: ImageResource,
+    },
+    UpdateTableCell {
+        table_id: String,
+        row_id: String,
+        cell_id: String,
+        text: String,
+    },
+    AddTableRow {
+        table_id: String,
+        after_row_id: Option<String>,
+        row: TableRow,
+    },
+    RemoveTableRow {
+        table_id: String,
+        row_id: String,
+    },
     AddTableColumn {
         table_id: String,
         after_column_index: isize,
         width_mm: f64,
         cells: Vec<TableCell>,
     },
-    RemoveTableColumn { table_id: String, column_index: usize },
+    RemoveTableColumn {
+        table_id: String,
+        column_index: usize,
+    },
     UpdateImage {
         block_id: String,
         #[serde(default)]
@@ -835,18 +889,46 @@ pub enum DocumentCommand {
         #[serde(default)]
         paragraph: Option<TextBlock>,
     },
-    RemoveBreak { block_id: String },
-    SetReviewAuthor { author: String },
-    SetTrackChanges { enabled: bool },
-    AddComment { thread: CommentThread },
-    ReplyComment { thread_id: String, message: CommentMessage },
-    ResolveComment { thread_id: String, resolved: bool },
-    RemoveComment { thread_id: String },
-    AddBookmark { bookmark: Bookmark },
-    RemoveBookmark { bookmark_id: String },
-    SetHyperlink { start: DocumentPoint, end: DocumentPoint, hyperlink: Option<Hyperlink> },
-    AcceptChange { change_id: String },
-    RejectChange { change_id: String },
+    RemoveBreak {
+        block_id: String,
+    },
+    SetReviewAuthor {
+        author: String,
+    },
+    SetTrackChanges {
+        enabled: bool,
+    },
+    AddComment {
+        thread: CommentThread,
+    },
+    ReplyComment {
+        thread_id: String,
+        message: CommentMessage,
+    },
+    ResolveComment {
+        thread_id: String,
+        resolved: bool,
+    },
+    RemoveComment {
+        thread_id: String,
+    },
+    AddBookmark {
+        bookmark: Bookmark,
+    },
+    RemoveBookmark {
+        bookmark_id: String,
+    },
+    SetHyperlink {
+        start: DocumentPoint,
+        end: DocumentPoint,
+        hyperlink: Option<Hyperlink>,
+    },
+    AcceptChange {
+        change_id: String,
+    },
+    RejectChange {
+        change_id: String,
+    },
     AcceptAllChanges,
     RejectAllChanges,
 }
@@ -855,7 +937,11 @@ pub enum DocumentCommand {
 pub enum EngineError {
     BlockNotFound(String),
     WrongBlockType(String),
-    InvalidRange { start: usize, end: usize, len: usize },
+    InvalidRange {
+        start: usize,
+        end: usize,
+        len: usize,
+    },
     InvalidSelection,
     CannotMerge,
     CannotRemoveLastTableRow,
@@ -872,17 +958,34 @@ impl Display for EngineError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BlockNotFound(id) => write!(formatter, "No se encontró el bloque '{id}'."),
-            Self::WrongBlockType(id) => write!(formatter, "El bloque '{id}' no corresponde al tipo requerido."),
-            Self::InvalidRange { start, end, len } => write!(formatter, "Rango inválido: inicio={start}, fin={end}, longitud={len}."),
+            Self::WrongBlockType(id) => write!(
+                formatter,
+                "El bloque '{id}' no corresponde al tipo requerido."
+            ),
+            Self::InvalidRange { start, end, len } => write!(
+                formatter,
+                "Rango inválido: inicio={start}, fin={end}, longitud={len}."
+            ),
             Self::InvalidSelection => write!(formatter, "La selección documental no es válida."),
-            Self::CannotMerge => write!(formatter, "Solo es posible unir dos bloques de texto contiguos."),
-            Self::CannotRemoveLastTableRow => write!(formatter, "Una tabla debe conservar al menos una fila."),
-            Self::CannotRemoveLastTableColumn => write!(formatter, "Una tabla debe conservar al menos una columna."),
-            Self::InvalidHeadingLevel(level) => write!(formatter, "El nivel de encabezado {level} no es válido."),
+            Self::CannotMerge => write!(
+                formatter,
+                "Solo es posible unir dos bloques de texto contiguos."
+            ),
+            Self::CannotRemoveLastTableRow => {
+                write!(formatter, "Una tabla debe conservar al menos una fila.")
+            }
+            Self::CannotRemoveLastTableColumn => {
+                write!(formatter, "Una tabla debe conservar al menos una columna.")
+            }
+            Self::InvalidHeadingLevel(level) => {
+                write!(formatter, "El nivel de encabezado {level} no es válido.")
+            }
             Self::DuplicateBlockId(id) => write!(formatter, "El bloque '{id}' ya existe."),
             Self::InvalidTable(message) => write!(formatter, "Tabla inválida: {message}"),
             Self::SectionNotFound(id) => write!(formatter, "No se encontró la sección '{id}'."),
-            Self::NewSectionRequired => write!(formatter, "Un salto de sección requiere una nueva sección."),
+            Self::NewSectionRequired => {
+                write!(formatter, "Un salto de sección requiere una nueva sección.")
+            }
             Self::Serialization(message) => write!(formatter, "Error de serialización: {message}"),
         }
     }
@@ -936,10 +1039,18 @@ impl OfficeEngine {
         !self.redo_stack.is_empty()
     }
 
-    pub fn apply(&mut self, command: DocumentCommand, now_ms: u64) -> Result<&TextDocument, EngineError> {
+    pub fn apply(
+        &mut self,
+        command: DocumentCommand,
+        now_ms: u64,
+    ) -> Result<&TextDocument, EngineError> {
         let snapshot = self.document.clone();
         let should_track = self.document.review.track_changes && is_trackable_command(&command);
-        let before_snapshot = if should_track { Some(create_review_snapshot(&snapshot)?) } else { None };
+        let before_snapshot = if should_track {
+            Some(create_review_snapshot(&snapshot)?)
+        } else {
+            None
+        };
         let command_copy = command.clone();
         apply_command(&mut self.document, command)?;
         normalize_document(&mut self.document);
@@ -1014,15 +1125,32 @@ fn apply_command(document: &mut TextDocument, command: DocumentCommand) -> Resul
             let style = style_at_offset(block, 0);
             block.runs = normalize_runs(
                 &block.id,
-                vec![TextRun { id: format!("{}-replace", block.id), text, style: style.clone(), hyperlink: None }],
+                vec![TextRun {
+                    id: format!("{}-replace", block.id),
+                    text,
+                    style: style.clone(),
+                    hyperlink: None,
+                }],
                 style,
                 None,
             );
         }
-        DocumentCommand::ReplaceTextRange { block_id, start, end, text, style } => {
+        DocumentCommand::ReplaceTextRange {
+            block_id,
+            start,
+            end,
+            text,
+            style,
+        } => {
             replace_text_range(document, &block_id, start, end, &text, style.as_ref())?;
         }
-        DocumentCommand::ReplaceDocumentRange { start, end, text, style, id_prefix } => {
+        DocumentCommand::ReplaceDocumentRange {
+            start,
+            end,
+            text,
+            style,
+            id_prefix,
+        } => {
             let base_style = {
                 let block = find_text_block(document, &start.block_id)?;
                 apply_text_style(style_at_offset(block, start.offset), style.as_ref())
@@ -1057,13 +1185,27 @@ fn apply_command(document: &mut TextDocument, command: DocumentCommand) -> Resul
                 trailing_run_id,
             )?;
         }
-        DocumentCommand::InsertText { block_id, offset, text, style } => {
+        DocumentCommand::InsertText {
+            block_id,
+            offset,
+            text,
+            style,
+        } => {
             replace_text_range(document, &block_id, offset, offset, &text, style.as_ref())?;
         }
-        DocumentCommand::DeleteText { block_id, start, end } => {
+        DocumentCommand::DeleteText {
+            block_id,
+            start,
+            end,
+        } => {
             replace_text_range(document, &block_id, start, end, "", None)?;
         }
-        DocumentCommand::FormatText { block_id, start, end, style } => {
+        DocumentCommand::FormatText {
+            block_id,
+            start,
+            end,
+            style,
+        } => {
             format_text_range(document, &block_id, start, end, &style)?;
         }
         DocumentCommand::FormatDocumentRange { start, end, style } => {
@@ -1080,11 +1222,17 @@ fn apply_command(document: &mut TextDocument, command: DocumentCommand) -> Resul
             }
         }
         DocumentCommand::SetParagraphStyle { block_id, style } => {
-            patch_paragraph_style(&mut find_text_block_mut(document, &block_id)?.paragraph_style, &style);
+            patch_paragraph_style(
+                &mut find_text_block_mut(document, &block_id)?.paragraph_style,
+                &style,
+            );
         }
         DocumentCommand::SetParagraphStyleMany { block_ids, style } => {
             for id in unique_strings(block_ids) {
-                patch_paragraph_style(&mut find_text_block_mut(document, &id)?.paragraph_style, &style);
+                patch_paragraph_style(
+                    &mut find_text_block_mut(document, &id)?.paragraph_style,
+                    &style,
+                );
             }
         }
         DocumentCommand::SetList { block_ids, list } => {
@@ -1096,42 +1244,79 @@ fn apply_command(document: &mut TextDocument, command: DocumentCommand) -> Resul
                 }
             }
         }
-        DocumentCommand::SplitBlock { block_id, offset, new_block_id, new_run_id } => {
+        DocumentCommand::SplitBlock {
+            block_id,
+            offset,
+            new_block_id,
+            new_run_id,
+        } => {
             split_block(document, &block_id, offset, new_block_id, new_run_id)?;
         }
-        DocumentCommand::MergeWithPrevious { block_id } => merge_with_previous(document, &block_id)?,
-        DocumentCommand::AddParagraph { after_block_id, block_id, run_id, section_id } => {
+        DocumentCommand::MergeWithPrevious { block_id } => {
+            merge_with_previous(document, &block_id)?
+        }
+        DocumentCommand::AddParagraph {
+            after_block_id,
+            block_id,
+            run_id,
+            section_id,
+        } => {
             assert_unique_block_id(document, &block_id)?;
             let index = match after_block_id.as_ref() {
                 Some(id) => find_block_index(document, id)? + 1,
                 None => document.blocks.len(),
             };
-            let inferred_section_id = section_id.or_else(|| {
-                index.checked_sub(1)
-                    .and_then(|position| document.blocks.get(position))
-                    .map(block_section_id)
-            }).unwrap_or_else(default_section_id);
+            let inferred_section_id = section_id
+                .or_else(|| {
+                    index
+                        .checked_sub(1)
+                        .and_then(|position| document.blocks.get(position))
+                        .map(block_section_id)
+                })
+                .unwrap_or_else(default_section_id);
             let mut paragraph = empty_paragraph(&block_id, &run_id);
             paragraph.section_id = inferred_section_id;
-            document.blocks.insert(index, DocumentBlock::Text(paragraph));
+            document
+                .blocks
+                .insert(index, DocumentBlock::Text(paragraph));
         }
         DocumentCommand::RemoveBlock { block_id } => remove_block(document, &block_id)?,
         DocumentCommand::AddResource { resource } => {
-            document.resources.images.insert(resource.id.clone(), resource);
+            document
+                .resources
+                .images
+                .insert(resource.id.clone(), resource);
         }
-        DocumentCommand::UpdateTableCell { table_id, row_id, cell_id, text } => {
+        DocumentCommand::UpdateTableCell {
+            table_id,
+            row_id,
+            cell_id,
+            text,
+        } => {
             update_table_cell(document, &table_id, &row_id, &cell_id, text)?;
         }
-        DocumentCommand::AddTableRow { table_id, after_row_id, row } => {
+        DocumentCommand::AddTableRow {
+            table_id,
+            after_row_id,
+            row,
+        } => {
             add_table_row(document, &table_id, after_row_id.as_deref(), row)?;
         }
         DocumentCommand::RemoveTableRow { table_id, row_id } => {
             remove_table_row(document, &table_id, &row_id)?;
         }
-        DocumentCommand::AddTableColumn { table_id, after_column_index, width_mm, cells } => {
+        DocumentCommand::AddTableColumn {
+            table_id,
+            after_column_index,
+            width_mm,
+            cells,
+        } => {
             add_table_column(document, &table_id, after_column_index, width_mm, cells)?;
         }
-        DocumentCommand::RemoveTableColumn { table_id, column_index } => {
+        DocumentCommand::RemoveTableColumn {
+            table_id,
+            column_index,
+        } => {
             remove_table_column(document, &table_id, column_index)?;
         }
         DocumentCommand::UpdateImage {
@@ -1166,43 +1351,97 @@ fn apply_command(document: &mut TextDocument, command: DocumentCommand) -> Resul
         DocumentCommand::SetSectionProperties { section_id, patch } => {
             set_section_properties(document, &section_id, patch)?;
         }
-        DocumentCommand::SetSectionHeaderFooter { section_id, area, variant, content } => {
+        DocumentCommand::SetSectionHeaderFooter {
+            section_id,
+            area,
+            variant,
+            content,
+        } => {
             set_section_header_footer(document, &section_id, area, variant, content)?;
         }
-        DocumentCommand::InsertBreak { after_block_id, break_block, new_section, paragraph } => {
-            insert_break(document, &after_block_id, break_block, new_section, paragraph)?;
+        DocumentCommand::InsertBreak {
+            after_block_id,
+            break_block,
+            new_section,
+            paragraph,
+        } => {
+            insert_break(
+                document,
+                &after_block_id,
+                break_block,
+                new_section,
+                paragraph,
+            )?;
         }
         DocumentCommand::RemoveBreak { block_id } => {
             remove_break(document, &block_id)?;
         }
         DocumentCommand::SetReviewAuthor { author } => {
-            document.review.author = if author.trim().is_empty() { "Autor local".to_string() } else { author.trim().to_string() };
+            document.review.author = if author.trim().is_empty() {
+                "Autor local".to_string()
+            } else {
+                author.trim().to_string()
+            };
         }
         DocumentCommand::SetTrackChanges { enabled } => document.review.track_changes = enabled,
         DocumentCommand::AddComment { thread } => document.review.comments.push(thread),
         DocumentCommand::ReplyComment { thread_id, message } => {
-            let thread = document.review.comments.iter_mut().find(|item| item.id == thread_id)
-                .ok_or_else(|| EngineError::Serialization(format!("comentario '{thread_id}' no encontrado")))?;
-            thread.updated_at = thread.updated_at.max(message.updated_at.max(message.created_at));
+            let thread = document
+                .review
+                .comments
+                .iter_mut()
+                .find(|item| item.id == thread_id)
+                .ok_or_else(|| {
+                    EngineError::Serialization(format!("comentario '{thread_id}' no encontrado"))
+                })?;
+            thread.updated_at = thread
+                .updated_at
+                .max(message.updated_at.max(message.created_at));
             thread.messages.push(message);
         }
-        DocumentCommand::ResolveComment { thread_id, resolved } => {
-            let thread = document.review.comments.iter_mut().find(|item| item.id == thread_id)
-                .ok_or_else(|| EngineError::Serialization(format!("comentario '{thread_id}' no encontrado")))?;
+        DocumentCommand::ResolveComment {
+            thread_id,
+            resolved,
+        } => {
+            let thread = document
+                .review
+                .comments
+                .iter_mut()
+                .find(|item| item.id == thread_id)
+                .ok_or_else(|| {
+                    EngineError::Serialization(format!("comentario '{thread_id}' no encontrado"))
+                })?;
             thread.resolved = resolved;
         }
-        DocumentCommand::RemoveComment { thread_id } => document.review.comments.retain(|thread| thread.id != thread_id),
+        DocumentCommand::RemoveComment { thread_id } => document
+            .review
+            .comments
+            .retain(|thread| thread.id != thread_id),
         DocumentCommand::AddBookmark { bookmark } => {
-            document.review.bookmarks.retain(|item| !item.name.eq_ignore_ascii_case(&bookmark.name));
+            document
+                .review
+                .bookmarks
+                .retain(|item| !item.name.eq_ignore_ascii_case(&bookmark.name));
             document.review.bookmarks.push(bookmark);
         }
-        DocumentCommand::RemoveBookmark { bookmark_id } => document.review.bookmarks.retain(|bookmark| bookmark.id != bookmark_id),
-        DocumentCommand::SetHyperlink { start, end, hyperlink } => set_hyperlink_range(document, &start, &end, hyperlink)?,
-        DocumentCommand::AcceptChange { change_id } => set_change_status(document, &change_id, ReviewChangeStatus::Accepted)?,
+        DocumentCommand::RemoveBookmark { bookmark_id } => document
+            .review
+            .bookmarks
+            .retain(|bookmark| bookmark.id != bookmark_id),
+        DocumentCommand::SetHyperlink {
+            start,
+            end,
+            hyperlink,
+        } => set_hyperlink_range(document, &start, &end, hyperlink)?,
+        DocumentCommand::AcceptChange { change_id } => {
+            set_change_status(document, &change_id, ReviewChangeStatus::Accepted)?
+        }
         DocumentCommand::RejectChange { change_id } => reject_change(document, &change_id)?,
         DocumentCommand::AcceptAllChanges => {
             for change in &mut document.review.changes {
-                if matches!(change.status, ReviewChangeStatus::Pending) { change.status = ReviewChangeStatus::Accepted; }
+                if matches!(change.status, ReviewChangeStatus::Pending) {
+                    change.status = ReviewChangeStatus::Accepted;
+                }
             }
         }
         DocumentCommand::RejectAllChanges => reject_all_changes(document)?,
@@ -1228,7 +1467,10 @@ fn set_block_section_id(block: &mut DocumentBlock, section_id: &str) {
     }
 }
 
-fn find_section_mut<'a>(document: &'a mut TextDocument, section_id: &str) -> Result<&'a mut DocumentSection, EngineError> {
+fn find_section_mut<'a>(
+    document: &'a mut TextDocument,
+    section_id: &str,
+) -> Result<&'a mut DocumentSection, EngineError> {
     document
         .sections
         .iter_mut()
@@ -1250,25 +1492,55 @@ fn set_section_properties(
             }
         }
         if let Some(value) = patch.page_settings {
-            if let Some(item) = value.width_mm { section.page_settings.width_mm = item; }
-            if let Some(item) = value.height_mm { section.page_settings.height_mm = item; }
-            if let Some(item) = value.margin_top_mm { section.page_settings.margin_top_mm = item; }
-            if let Some(item) = value.margin_right_mm { section.page_settings.margin_right_mm = item; }
-            if let Some(item) = value.margin_bottom_mm { section.page_settings.margin_bottom_mm = item; }
-            if let Some(item) = value.margin_left_mm { section.page_settings.margin_left_mm = item; }
+            if let Some(item) = value.width_mm {
+                section.page_settings.width_mm = item;
+            }
+            if let Some(item) = value.height_mm {
+                section.page_settings.height_mm = item;
+            }
+            if let Some(item) = value.margin_top_mm {
+                section.page_settings.margin_top_mm = item;
+            }
+            if let Some(item) = value.margin_right_mm {
+                section.page_settings.margin_right_mm = item;
+            }
+            if let Some(item) = value.margin_bottom_mm {
+                section.page_settings.margin_bottom_mm = item;
+            }
+            if let Some(item) = value.margin_left_mm {
+                section.page_settings.margin_left_mm = item;
+            }
         }
         if let Some(value) = patch.columns {
-            if let Some(item) = value.count { section.columns.count = item; }
-            if let Some(item) = value.gap_mm { section.columns.gap_mm = item; }
-            if let Some(item) = value.line_between { section.columns.line_between = item; }
-            if let Some(item) = value.balance { section.columns.balance = item; }
+            if let Some(item) = value.count {
+                section.columns.count = item;
+            }
+            if let Some(item) = value.gap_mm {
+                section.columns.gap_mm = item;
+            }
+            if let Some(item) = value.line_between {
+                section.columns.line_between = item;
+            }
+            if let Some(item) = value.balance {
+                section.columns.balance = item;
+            }
         }
-        if let Some(value) = patch.different_first_page { section.different_first_page = value; }
-        if let Some(value) = patch.different_odd_even { section.different_odd_even = value; }
+        if let Some(value) = patch.different_first_page {
+            section.different_first_page = value;
+        }
+        if let Some(value) = patch.different_odd_even {
+            section.different_odd_even = value;
+        }
         if let Some(value) = patch.page_numbering {
-            if let Some(item) = value.restart { section.page_numbering.restart = item; }
-            if let Some(item) = value.start { section.page_numbering.start = item; }
-            if let Some(item) = value.format { section.page_numbering.format = item; }
+            if let Some(item) = value.restart {
+                section.page_numbering.restart = item;
+            }
+            if let Some(item) = value.start {
+                section.page_numbering.start = item;
+            }
+            if let Some(item) = value.format {
+                section.page_numbering.format = item;
+            }
         }
         normalize_section(section);
     }
@@ -1331,7 +1603,8 @@ fn insert_break(
         break_block.next_section_id = Some(section.id.clone());
         document.sections.push(section);
         for candidate in document.blocks.iter_mut().skip(index + 1) {
-            if matches!(candidate, DocumentBlock::Break(value) if matches!(value.break_kind, BreakKind::Section)) {
+            if matches!(candidate, DocumentBlock::Break(value) if matches!(value.break_kind, BreakKind::Section))
+            {
                 break;
             }
             set_block_section_id(candidate, &target_section_id);
@@ -1339,12 +1612,16 @@ fn insert_break(
     } else {
         break_block.next_section_id = None;
     }
-    document.blocks.insert(index + 1, DocumentBlock::Break(break_block.clone()));
+    document
+        .blocks
+        .insert(index + 1, DocumentBlock::Break(break_block.clone()));
     if let Some(mut value) = paragraph {
         assert_unique_block_id(document, &value.id)?;
         value.block_type = "text".to_string();
         value.section_id = target_section_id.clone();
-        document.blocks.insert(index + 2, DocumentBlock::Text(value));
+        document
+            .blocks
+            .insert(index + 2, DocumentBlock::Text(value));
     } else if index + 2 >= document.blocks.len() {
         let id = format!("{}-paragraph", break_block.id);
         let mut value = empty_paragraph(&id, &format!("{id}-run-1"));
@@ -1363,14 +1640,17 @@ fn remove_break(document: &mut TextDocument, block_id: &str) -> Result<(), Engin
     if matches!(break_block.break_kind, BreakKind::Section) {
         if let Some(next_section_id) = break_block.next_section_id.as_ref() {
             for candidate in document.blocks.iter_mut().skip(index + 1) {
-                if matches!(candidate, DocumentBlock::Break(value) if matches!(value.break_kind, BreakKind::Section)) {
+                if matches!(candidate, DocumentBlock::Break(value) if matches!(value.break_kind, BreakKind::Section))
+                {
                     break;
                 }
                 if block_section_id(candidate) == next_section_id.as_str() {
                     set_block_section_id(candidate, &break_block.section_id);
                 }
             }
-            document.sections.retain(|section| section.id != next_section_id.as_str());
+            document
+                .sections
+                .retain(|section| section.id != next_section_id.as_str());
         }
     }
     document.blocks.remove(index);
@@ -1451,8 +1731,16 @@ fn format_document_range(
             continue;
         };
         let length = block_char_len(block);
-        let from = if index == range.start_index { range.start.offset } else { 0 };
-        let to = if index == range.end_index { range.end.offset } else { length };
+        let from = if index == range.start_index {
+            range.start.offset
+        } else {
+            0
+        };
+        let to = if index == range.end_index {
+            range.end.offset
+        } else {
+            length
+        };
         if from < to {
             let id = block.id.clone();
             format_text_range(document, &id, from, to, patch)?;
@@ -1482,8 +1770,16 @@ fn replace_range_with_fragment(
         .and_then(DocumentBlock::as_text)
         .cloned()
         .ok_or(EngineError::InvalidSelection)?;
-    validate_range(range.start.offset, range.start.offset, block_char_len(&start_source))?;
-    validate_range(range.end.offset, range.end.offset, block_char_len(&end_source))?;
+    validate_range(
+        range.start.offset,
+        range.start.offset,
+        block_char_len(&start_source),
+    )?;
+    validate_range(
+        range.end.offset,
+        range.end.offset,
+        block_char_len(&end_source),
+    )?;
 
     let removed_image_resource_ids = document.blocks[range.start_index..=range.end_index]
         .iter()
@@ -1508,7 +1804,10 @@ fn replace_range_with_fragment(
         }
     }
     for (id, resource) in &fragment.resources.images {
-        document.resources.images.insert(id.clone(), resource.clone());
+        document
+            .resources
+            .images
+            .insert(id.clone(), resource.clone());
     }
 
     let mut replacement: Vec<DocumentBlock> = Vec::new();
@@ -1621,7 +1920,9 @@ fn replace_range_with_fragment(
 
         let last_is_text = inserted.last().and_then(DocumentBlock::as_text).is_some();
         replacement.extend(inserted);
-        if !last_is_text && (suffix_has_text || !replacement.iter().any(|block| block.as_text().is_some())) {
+        if !last_is_text
+            && (suffix_has_text || !replacement.iter().any(|block| block.as_text().is_some()))
+        {
             replacement.push(DocumentBlock::Text(trailing_text_block(
                 &end_source,
                 suffix,
@@ -1650,7 +1951,8 @@ fn trailing_text_block(
     trailing_run_id: Option<String>,
     revision: u64,
 ) -> TextBlock {
-    let id = trailing_block_id.unwrap_or_else(|| format!("{}-tail-{}", end_source.id, revision + 1));
+    let id =
+        trailing_block_id.unwrap_or_else(|| format!("{}-tail-{}", end_source.id, revision + 1));
     let mut right = end_source.clone();
     right.id = id.clone();
     right.runs = normalize_runs(
@@ -1717,7 +2019,11 @@ fn merge_with_previous(document: &mut TextDocument, block_id: &str) -> Result<()
         .and_then(DocumentBlock::as_text)
         .cloned()
         .ok_or(EngineError::CannotMerge)?;
-    let fallback = previous.runs.last().map(|run| run.style.clone()).unwrap_or_default();
+    let fallback = previous
+        .runs
+        .last()
+        .map(|run| run.style.clone())
+        .unwrap_or_default();
     let mut merged = previous.clone();
     merged.runs = normalize_runs(
         &merged.id,
@@ -1741,9 +2047,9 @@ fn remove_block(document: &mut TextDocument, block_id: &str) -> Result<(), Engin
 }
 
 fn remove_unused_image_resource(document: &mut TextDocument, resource_id: &str) {
-    let still_used = document.blocks.iter().any(|block| {
-        matches!(block, DocumentBlock::Image(image) if image.resource_id == resource_id)
-    });
+    let still_used = document.blocks.iter().any(
+        |block| matches!(block, DocumentBlock::Image(image) if image.resource_id == resource_id),
+    );
     if !still_used {
         document.resources.images.remove(resource_id);
     }
@@ -1767,10 +2073,19 @@ fn update_table_cell(
         .iter_mut()
         .find(|cell| cell.id == cell_id)
         .ok_or_else(|| EngineError::InvalidTable(format!("celda '{cell_id}' no encontrada")))?;
-    let style = cell.runs.first().map(|run| run.style.clone()).unwrap_or_default();
+    let style = cell
+        .runs
+        .first()
+        .map(|run| run.style.clone())
+        .unwrap_or_default();
     cell.runs = normalize_runs(
         &cell.id,
-        vec![TextRun { id: format!("{}-edit", cell.id), text, style: style.clone(), hyperlink: None }],
+        vec![TextRun {
+            id: format!("{}-edit", cell.id),
+            text,
+            style: style.clone(),
+            hyperlink: None,
+        }],
         style,
         None,
     );
@@ -1786,23 +2101,31 @@ fn add_table_row(
     let table = find_table_block_mut(document, table_id)?;
     let columns = table.column_widths_mm.len();
     if row.cells.len() != columns {
-        return Err(EngineError::InvalidTable(format!("la fila debe contener {columns} celdas")));
+        return Err(EngineError::InvalidTable(format!(
+            "la fila debe contener {columns} celdas"
+        )));
     }
     normalize_table_row(&mut row, table_id, table.rows.len(), columns);
     let index = match after_row_id {
-        Some(id) => table
-            .rows
-            .iter()
-            .position(|item| item.id == id)
-            .ok_or_else(|| EngineError::InvalidTable(format!("fila '{id}' no encontrada")))?
-            + 1,
+        Some(id) => {
+            table
+                .rows
+                .iter()
+                .position(|item| item.id == id)
+                .ok_or_else(|| EngineError::InvalidTable(format!("fila '{id}' no encontrada")))?
+                + 1
+        }
         None => table.rows.len(),
     };
     table.rows.insert(index, row);
     Ok(())
 }
 
-fn remove_table_row(document: &mut TextDocument, table_id: &str, row_id: &str) -> Result<(), EngineError> {
+fn remove_table_row(
+    document: &mut TextDocument,
+    table_id: &str,
+    row_id: &str,
+) -> Result<(), EngineError> {
     let table = find_table_block_mut(document, table_id)?;
     if table.rows.len() <= 1 {
         return Err(EngineError::CannotRemoveLastTableRow);
@@ -1833,7 +2156,9 @@ fn add_table_column(
     }
     let proposed = after_column_index.saturating_add(1).max(0) as usize;
     let index = proposed.min(table.column_widths_mm.len());
-    table.column_widths_mm.insert(index, clamp(width_mm, 10.0, 120.0));
+    table
+        .column_widths_mm
+        .insert(index, clamp(width_mm, 10.0, 120.0));
     for (row_index, row) in table.rows.iter_mut().enumerate() {
         let mut cell = cells.remove(0);
         normalize_table_cell(&mut cell, &format!("{table_id}-cell-new-{}", row_index + 1));
@@ -1945,15 +2270,27 @@ fn ordered_range(
         || (anchor_index == focus_index && anchor_offset <= focus_offset);
     if anchor_before {
         Ok(OrderedRange {
-            start: DocumentPoint { block_id: anchor.block_id.clone(), offset: anchor_offset },
-            end: DocumentPoint { block_id: focus.block_id.clone(), offset: focus_offset },
+            start: DocumentPoint {
+                block_id: anchor.block_id.clone(),
+                offset: anchor_offset,
+            },
+            end: DocumentPoint {
+                block_id: focus.block_id.clone(),
+                offset: focus_offset,
+            },
             start_index: anchor_index,
             end_index: focus_index,
         })
     } else {
         Ok(OrderedRange {
-            start: DocumentPoint { block_id: focus.block_id.clone(), offset: focus_offset },
-            end: DocumentPoint { block_id: anchor.block_id.clone(), offset: anchor_offset },
+            start: DocumentPoint {
+                block_id: focus.block_id.clone(),
+                offset: focus_offset,
+            },
+            end: DocumentPoint {
+                block_id: anchor.block_id.clone(),
+                offset: anchor_offset,
+            },
             start_index: focus_index,
             end_index: anchor_index,
         })
@@ -1978,7 +2315,11 @@ fn style_at_offset(block: &TextBlock, offset: usize) -> TextStyle {
         }
         cursor = end;
     }
-    block.runs.last().map(|run| run.style.clone()).unwrap_or_default()
+    block
+        .runs
+        .last()
+        .map(|run| run.style.clone())
+        .unwrap_or_default()
 }
 
 fn slice_runs(block: &TextBlock, start: usize, end: usize) -> Vec<TextRun> {
@@ -2000,15 +2341,13 @@ fn slice_runs(block: &TextBlock, start: usize, end: usize) -> Vec<TextRun> {
         }
         cursor = run_end;
     }
-    normalize_runs(
-        &block.id,
-        result,
-        style_at_offset(block, start),
-        None,
-    )
+    normalize_runs(&block.id, result, style_at_offset(block, start), None)
 }
 
-fn split_runs(runs: &[TextRun], offset: usize) -> Result<(Vec<TextRun>, Vec<TextRun>), EngineError> {
+fn split_runs(
+    runs: &[TextRun],
+    offset: usize,
+) -> Result<(Vec<TextRun>, Vec<TextRun>), EngineError> {
     let total: usize = runs.iter().map(|run| run.text.chars().count()).sum();
     validate_range(offset, offset, total)?;
     let mut left = Vec::new();
@@ -2259,8 +2598,10 @@ fn normalize_section(section: &mut DocumentSection) {
     section.page_settings.width_mm = clamp(section.page_settings.width_mm, 50.0, 1000.0);
     section.page_settings.height_mm = clamp(section.page_settings.height_mm, 50.0, 1000.0);
     section.page_settings.margin_top_mm = clamp(section.page_settings.margin_top_mm, 0.0, 100.0);
-    section.page_settings.margin_right_mm = clamp(section.page_settings.margin_right_mm, 0.0, 100.0);
-    section.page_settings.margin_bottom_mm = clamp(section.page_settings.margin_bottom_mm, 0.0, 100.0);
+    section.page_settings.margin_right_mm =
+        clamp(section.page_settings.margin_right_mm, 0.0, 100.0);
+    section.page_settings.margin_bottom_mm =
+        clamp(section.page_settings.margin_bottom_mm, 0.0, 100.0);
     section.page_settings.margin_left_mm = clamp(section.page_settings.margin_left_mm, 0.0, 100.0);
     section.columns.count = section.columns.count.clamp(1, 4);
     section.columns.gap_mm = clamp(section.columns.gap_mm, 0.0, 50.0);
@@ -2306,9 +2647,15 @@ fn normalize_document(document: &mut TextDocument) {
         match block {
             DocumentBlock::Break(value)
                 if matches!(value.break_kind, BreakKind::Section)
-                    && value.next_section_id.as_ref().is_some_and(|id| section_ids.contains(id)) =>
+                    && value
+                        .next_section_id
+                        .as_ref()
+                        .is_some_and(|id| section_ids.contains(id)) =>
             {
-                active_section_id = value.next_section_id.clone().unwrap_or_else(default_section_id);
+                active_section_id = value
+                    .next_section_id
+                    .clone()
+                    .unwrap_or_else(default_section_id);
             }
             DocumentBlock::Break(_) => {}
             _ => active_section_id = block_section_id(block),
@@ -2333,7 +2680,10 @@ fn normalize_block(block: &mut DocumentBlock) {
             text.runs = normalize_runs(
                 &text.id,
                 text.runs.clone(),
-                text.runs.first().map(|run| run.style.clone()).unwrap_or_default(),
+                text.runs
+                    .first()
+                    .map(|run| run.style.clone())
+                    .unwrap_or_default(),
                 None,
             );
             if let Some(list) = text.list.take() {
@@ -2419,15 +2769,20 @@ fn normalize_table_cell(cell: &mut TableCell, fallback_id: &str) {
     cell.runs = normalize_runs(
         &cell.id,
         cell.runs.clone(),
-        cell.runs.first().map(|run| run.style.clone()).unwrap_or_default(),
+        cell.runs
+            .first()
+            .map(|run| run.style.clone())
+            .unwrap_or_default(),
         None,
     );
     cell.paragraph_style.space_after_pt = cell.paragraph_style.space_after_pt.max(0.0);
 }
 
 fn empty_table_cell(id: &str) -> TableCell {
-    let mut paragraph_style = ParagraphStyle::default();
-    paragraph_style.space_after_pt = 0.0;
+    let paragraph_style = ParagraphStyle {
+        space_after_pt: 0.0,
+        ..Default::default()
+    };
     TableCell {
         id: id.to_string(),
         paragraph_style,
@@ -2442,7 +2797,11 @@ fn empty_table_cell(id: &str) -> TableCell {
 }
 
 fn ensure_text_block(document: &mut TextDocument) {
-    if document.blocks.iter().any(|block| block.as_text().is_some()) {
+    if document
+        .blocks
+        .iter()
+        .any(|block| block.as_text().is_some())
+    {
         return;
     }
     let mut index = 1;
@@ -2464,7 +2823,11 @@ fn ensure_text_block(document: &mut TextDocument) {
 }
 
 fn validate_document(document: &TextDocument) -> Result<(), EngineError> {
-    let section_ids = document.sections.iter().map(|section| section.id.clone()).collect::<HashSet<_>>();
+    let section_ids = document
+        .sections
+        .iter()
+        .map(|section| section.id.clone())
+        .collect::<HashSet<_>>();
     if section_ids.is_empty() {
         return Err(EngineError::SectionNotFound(default_section_id()));
     }
@@ -2485,10 +2848,18 @@ fn validate_document(document: &TextDocument) -> Result<(), EngineError> {
             }
             DocumentBlock::Table(table) => {
                 if table.rows.is_empty() || table.column_widths_mm.is_empty() {
-                    return Err(EngineError::InvalidTable("sin filas o columnas".to_string()));
+                    return Err(EngineError::InvalidTable(
+                        "sin filas o columnas".to_string(),
+                    ));
                 }
-                if table.rows.iter().any(|row| row.cells.len() != table.column_widths_mm.len()) {
-                    return Err(EngineError::InvalidTable("filas con distinto número de celdas".to_string()));
+                if table
+                    .rows
+                    .iter()
+                    .any(|row| row.cells.len() != table.column_widths_mm.len())
+                {
+                    return Err(EngineError::InvalidTable(
+                        "filas con distinto número de celdas".to_string(),
+                    ));
                 }
             }
             DocumentBlock::Image(_) => {}
@@ -2497,7 +2868,11 @@ fn validate_document(document: &TextDocument) -> Result<(), EngineError> {
                     let Some(next) = value.next_section_id.as_ref() else {
                         return Err(EngineError::NewSectionRequired);
                     };
-                    if !document.sections.iter().any(|section| section.id == next.as_str()) {
+                    if !document
+                        .sections
+                        .iter()
+                        .any(|section| section.id == next.as_str())
+                    {
                         return Err(EngineError::SectionNotFound(next.clone()));
                     }
                 }
@@ -2554,37 +2929,79 @@ fn set_hyperlink_range(
     hyperlink: Option<Hyperlink>,
 ) -> Result<(), EngineError> {
     let range = ordered_range(document, start, end)?;
-    if range.start_index == range.end_index && range.start.offset == range.end.offset { return Ok(()); }
+    if range.start_index == range.end_index && range.start.offset == range.end.offset {
+        return Ok(());
+    }
     for index in range.start_index..=range.end_index {
-        let Some(DocumentBlock::Text(block)) = document.blocks.get(index) else { continue; };
+        let Some(DocumentBlock::Text(block)) = document.blocks.get(index) else {
+            continue;
+        };
         let length = block_char_len(block);
-        let from = if index == range.start_index { range.start.offset } else { 0 };
-        let to = if index == range.end_index { range.end.offset } else { length };
-        if from >= to { continue; }
+        let from = if index == range.start_index {
+            range.start.offset
+        } else {
+            0
+        };
+        let to = if index == range.end_index {
+            range.end.offset
+        } else {
+            length
+        };
+        if from >= to {
+            continue;
+        }
         let id = block.id.clone();
         let block = find_text_block_mut(document, &id)?;
         let fallback = style_at_offset(block, from);
         let (before, remainder) = split_runs(&block.runs, from)?;
         let (mut selected, after) = split_runs(&remainder, to - from)?;
-        for run in &mut selected { run.hyperlink = hyperlink.clone(); }
-        block.runs = normalize_runs(&block.id, before.into_iter().chain(selected).chain(after).collect(), fallback, None);
+        for run in &mut selected {
+            run.hyperlink = hyperlink.clone();
+        }
+        block.runs = normalize_runs(
+            &block.id,
+            before.into_iter().chain(selected).chain(after).collect(),
+            fallback,
+            None,
+        );
     }
     Ok(())
 }
 
-fn set_change_status(document: &mut TextDocument, change_id: &str, status: ReviewChangeStatus) -> Result<(), EngineError> {
-    let change = document.review.changes.iter_mut().find(|item| item.id == change_id)
+fn set_change_status(
+    document: &mut TextDocument,
+    change_id: &str,
+    status: ReviewChangeStatus,
+) -> Result<(), EngineError> {
+    let change = document
+        .review
+        .changes
+        .iter_mut()
+        .find(|item| item.id == change_id)
         .ok_or_else(|| EngineError::Serialization(format!("cambio '{change_id}' no encontrado")))?;
-    if matches!(change.status, ReviewChangeStatus::Pending) { change.status = status; }
+    if matches!(change.status, ReviewChangeStatus::Pending) {
+        change.status = status;
+    }
     Ok(())
 }
 
 fn reject_change(document: &mut TextDocument, change_id: &str) -> Result<(), EngineError> {
-    let pending_indices = document.review.changes.iter().enumerate()
+    let pending_indices = document
+        .review
+        .changes
+        .iter()
+        .enumerate()
         .filter(|(_, change)| matches!(change.status, ReviewChangeStatus::Pending))
-        .map(|(index, _)| index).collect::<Vec<_>>();
-    let Some(index) = pending_indices.iter().copied().find(|index| document.review.changes[*index].id == change_id) else {
-        return Err(EngineError::Serialization(format!("cambio pendiente '{change_id}' no encontrado")));
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let Some(index) = pending_indices
+        .iter()
+        .copied()
+        .find(|index| document.review.changes[*index].id == change_id)
+    else {
+        return Err(EngineError::Serialization(format!(
+            "cambio pendiente '{change_id}' no encontrado"
+        )));
     };
     if pending_indices.last().copied() != Some(index) {
         document.review.changes[index].status = ReviewChangeStatus::Conflict;
@@ -2607,9 +3024,20 @@ fn reject_change(document: &mut TextDocument, change_id: &str) -> Result<(), Eng
 }
 
 fn reject_all_changes(document: &mut TextDocument) -> Result<(), EngineError> {
-    let Some(first) = document.review.changes.iter().find(|change| matches!(change.status, ReviewChangeStatus::Pending) && change.before_snapshot.is_some()).cloned() else { return Ok(()); };
-    let mut restored: TextDocument = serde_json::from_str(first.before_snapshot.as_deref().unwrap_or("{}"))
-        .map_err(|error| EngineError::Serialization(error.to_string()))?;
+    let Some(first) = document
+        .review
+        .changes
+        .iter()
+        .find(|change| {
+            matches!(change.status, ReviewChangeStatus::Pending) && change.before_snapshot.is_some()
+        })
+        .cloned()
+    else {
+        return Ok(());
+    };
+    let mut restored: TextDocument =
+        serde_json::from_str(first.before_snapshot.as_deref().unwrap_or("{}"))
+            .map_err(|error| EngineError::Serialization(error.to_string()))?;
     normalize_document(&mut restored);
     let mut review = document.review.clone();
     review.track_changes = false;
@@ -2625,27 +3053,46 @@ fn reject_all_changes(document: &mut TextDocument) -> Result<(), EngineError> {
 }
 
 fn is_trackable_command(command: &DocumentCommand) -> bool {
-    !matches!(command,
-        DocumentCommand::SetReviewAuthor { .. } | DocumentCommand::SetTrackChanges { .. } |
-        DocumentCommand::AddComment { .. } | DocumentCommand::ReplyComment { .. } |
-        DocumentCommand::ResolveComment { .. } | DocumentCommand::RemoveComment { .. } |
-        DocumentCommand::AddBookmark { .. } | DocumentCommand::RemoveBookmark { .. } |
-        DocumentCommand::AcceptChange { .. } | DocumentCommand::RejectChange { .. } |
-        DocumentCommand::AcceptAllChanges | DocumentCommand::RejectAllChanges
+    !matches!(
+        command,
+        DocumentCommand::SetReviewAuthor { .. }
+            | DocumentCommand::SetTrackChanges { .. }
+            | DocumentCommand::AddComment { .. }
+            | DocumentCommand::ReplyComment { .. }
+            | DocumentCommand::ResolveComment { .. }
+            | DocumentCommand::RemoveComment { .. }
+            | DocumentCommand::AddBookmark { .. }
+            | DocumentCommand::RemoveBookmark { .. }
+            | DocumentCommand::AcceptChange { .. }
+            | DocumentCommand::RejectChange { .. }
+            | DocumentCommand::AcceptAllChanges
+            | DocumentCommand::RejectAllChanges
     )
 }
 
 fn create_review_snapshot(document: &TextDocument) -> Result<String, EngineError> {
     let mut snapshot = document.clone();
-    for change in &mut snapshot.review.changes { change.before_snapshot = None; }
+    for change in &mut snapshot.review.changes {
+        change.before_snapshot = None;
+    }
     serde_json::to_string(&snapshot).map_err(|error| EngineError::Serialization(error.to_string()))
 }
 
-fn create_tracked_change(command: &DocumentCommand, author: &str, before_snapshot: String, after_revision: u64, now_ms: u64) -> TrackedChange {
+fn create_tracked_change(
+    command: &DocumentCommand,
+    author: &str,
+    before_snapshot: String,
+    after_revision: u64,
+    now_ms: u64,
+) -> TrackedChange {
     TrackedChange {
         id: format!("change-{after_revision}-{now_ms}"),
         kind: command_change_kind(command),
-        author: if author.is_empty() { "Autor local".to_string() } else { author.to_string() },
+        author: if author.is_empty() {
+            "Autor local".to_string()
+        } else {
+            author.to_string()
+        },
         summary: command_summary(command).to_string(),
         command_type: command_name(command).to_string(),
         created_at: now_ms,
@@ -2659,27 +3106,39 @@ fn command_change_kind(command: &DocumentCommand) -> ReviewChangeKind {
     match command {
         DocumentCommand::InsertText { .. } => ReviewChangeKind::Insert,
         DocumentCommand::DeleteText { .. } => ReviewChangeKind::Delete,
-        DocumentCommand::FormatText { .. } | DocumentCommand::FormatDocumentRange { .. } | DocumentCommand::SetHyperlink { .. } => ReviewChangeKind::Format,
-        DocumentCommand::ReplaceBlockText { .. } | DocumentCommand::ReplaceTextRange { .. } | DocumentCommand::ReplaceDocumentRange { .. } | DocumentCommand::ReplaceRangeWithFragment { .. } => ReviewChangeKind::Replace,
+        DocumentCommand::FormatText { .. }
+        | DocumentCommand::FormatDocumentRange { .. }
+        | DocumentCommand::SetHyperlink { .. } => ReviewChangeKind::Format,
+        DocumentCommand::ReplaceBlockText { .. }
+        | DocumentCommand::ReplaceTextRange { .. }
+        | DocumentCommand::ReplaceDocumentRange { .. }
+        | DocumentCommand::ReplaceRangeWithFragment { .. } => ReviewChangeKind::Replace,
         _ => ReviewChangeKind::Structure,
     }
 }
 
 fn command_name(command: &DocumentCommand) -> &'static str {
     match command {
-        DocumentCommand::SetTitle { .. } => "setTitle", DocumentCommand::ReplaceBlockText { .. } => "replaceBlockText",
-        DocumentCommand::ReplaceTextRange { .. } => "replaceTextRange", DocumentCommand::ReplaceDocumentRange { .. } => "replaceDocumentRange",
-        DocumentCommand::ReplaceRangeWithFragment { .. } => "replaceRangeWithFragment", DocumentCommand::InsertText { .. } => "insertText",
-        DocumentCommand::DeleteText { .. } => "deleteText", DocumentCommand::FormatText { .. } => "formatText",
-        DocumentCommand::FormatDocumentRange { .. } => "formatDocumentRange", DocumentCommand::SetHyperlink { .. } => "setHyperlink",
+        DocumentCommand::SetTitle { .. } => "setTitle",
+        DocumentCommand::ReplaceBlockText { .. } => "replaceBlockText",
+        DocumentCommand::ReplaceTextRange { .. } => "replaceTextRange",
+        DocumentCommand::ReplaceDocumentRange { .. } => "replaceDocumentRange",
+        DocumentCommand::ReplaceRangeWithFragment { .. } => "replaceRangeWithFragment",
+        DocumentCommand::InsertText { .. } => "insertText",
+        DocumentCommand::DeleteText { .. } => "deleteText",
+        DocumentCommand::FormatText { .. } => "formatText",
+        DocumentCommand::FormatDocumentRange { .. } => "formatDocumentRange",
+        DocumentCommand::SetHyperlink { .. } => "setHyperlink",
         _ => "structure",
     }
 }
 
 fn command_summary(command: &DocumentCommand) -> &'static str {
     match command_change_kind(command) {
-        ReviewChangeKind::Insert => "Insertó texto", ReviewChangeKind::Delete => "Eliminó texto",
-        ReviewChangeKind::Replace => "Reemplazó contenido", ReviewChangeKind::Format => "Aplicó formato",
+        ReviewChangeKind::Insert => "Insertó texto",
+        ReviewChangeKind::Delete => "Eliminó texto",
+        ReviewChangeKind::Replace => "Reemplazó contenido",
+        ReviewChangeKind::Format => "Aplicó formato",
         ReviewChangeKind::Structure => "Cambió la estructura documental",
     }
 }
@@ -2698,13 +3157,15 @@ fn migrate_json_value(value: &mut Value) {
         root.insert("resources".to_string(), serde_json::json!({ "images": {} }));
     }
     if !root.contains_key("review") {
-        root.insert("review".to_string(), serde_json::to_value(ReviewState::default()).unwrap_or(Value::Null));
+        root.insert(
+            "review".to_string(),
+            serde_json::to_value(ReviewState::default()).unwrap_or(Value::Null),
+        );
     }
     if !root.contains_key("sections") {
-        let page_settings = root
-            .get("pageSettings")
-            .cloned()
-            .unwrap_or_else(|| serde_json::to_value(PageSettings::default()).unwrap_or(Value::Null));
+        let page_settings = root.get("pageSettings").cloned().unwrap_or_else(|| {
+            serde_json::to_value(PageSettings::default()).unwrap_or(Value::Null)
+        });
         root.insert(
             "sections".to_string(),
             serde_json::json!([{
@@ -2754,9 +3215,11 @@ fn migrate_json_value(value: &mut Value) {
             match block_type {
                 "text" => {
                     object.entry("list".to_string()).or_insert(Value::Null);
-                    object.entry("paragraphStyle".to_string()).or_insert_with(|| {
-                        serde_json::to_value(ParagraphStyle::default()).unwrap_or(Value::Null)
-                    });
+                    object
+                        .entry("paragraphStyle".to_string())
+                        .or_insert_with(|| {
+                            serde_json::to_value(ParagraphStyle::default()).unwrap_or(Value::Null)
+                        });
                     if let Some(runs) = object.get_mut("runs").and_then(Value::as_array_mut) {
                         for run in runs {
                             let Some(run_object) = run.as_object_mut() else {
@@ -2785,11 +3248,17 @@ fn migrate_json_value(value: &mut Value) {
                     });
                 }
                 "image" => {
-                    object.entry("keepWithNext".to_string()).or_insert(Value::Bool(false));
+                    object
+                        .entry("keepWithNext".to_string())
+                        .or_insert(Value::Bool(false));
                 }
                 "break" => {
-                    object.entry("startType".to_string()).or_insert(Value::from("next-page"));
-                    object.entry("nextSectionId".to_string()).or_insert(Value::Null);
+                    object
+                        .entry("startType".to_string())
+                        .or_insert(Value::from("next-page"));
+                    object
+                        .entry("nextSectionId".to_string())
+                        .or_insert(Value::Null);
                     if object.get("breakKind").and_then(Value::as_str) == Some("section") {
                         if let Some(next) = object.get("nextSectionId").and_then(Value::as_str) {
                             active_section_id = next.to_string();
@@ -2852,9 +3321,18 @@ mod tests {
         engine
             .apply(
                 DocumentCommand::FormatDocumentRange {
-                    start: DocumentPoint { block_id: "block-1".to_string(), offset: 3 },
-                    end: DocumentPoint { block_id: "block-2".to_string(), offset: 4 },
-                    style: TextStylePatch { bold: Some(true), ..Default::default() },
+                    start: DocumentPoint {
+                        block_id: "block-1".to_string(),
+                        offset: 3,
+                    },
+                    end: DocumentPoint {
+                        block_id: "block-2".to_string(),
+                        offset: 4,
+                    },
+                    style: TextStylePatch {
+                        bold: Some(true),
+                        ..Default::default()
+                    },
                 },
                 5,
             )
@@ -2867,8 +3345,14 @@ mod tests {
         engine
             .apply(
                 DocumentCommand::ReplaceDocumentRange {
-                    start: DocumentPoint { block_id: "block-1".to_string(), offset: 3 },
-                    end: DocumentPoint { block_id: "block-2".to_string(), offset: 4 },
+                    start: DocumentPoint {
+                        block_id: "block-1".to_string(),
+                        offset: 3,
+                    },
+                    end: DocumentPoint {
+                        block_id: "block-2".to_string(),
+                        offset: 4,
+                    },
                     text: "X".to_string(),
                     style: None,
                     id_prefix: "replace".to_string(),
@@ -2944,7 +3428,13 @@ mod tests {
           "blocks":[{"id":"block-1","kind":{"type":"paragraph"},"paragraphStyle":{"alignment":"left","lineHeight":1.35,"spaceBeforePt":0,"spaceAfterPt":8,"firstLineIndentMm":0},"runs":[{"id":"run-1","text":"Hola","style":{"bold":false,"italic":false,"underline":false}}]}]
         }"#;
         let engine = OfficeEngine::from_json(json).unwrap();
-        assert_eq!(engine.document().metadata.schema_version, CURRENT_SCHEMA_VERSION);
-        assert!(matches!(engine.document().blocks[0], DocumentBlock::Text(_)));
+        assert_eq!(
+            engine.document().metadata.schema_version,
+            CURRENT_SCHEMA_VERSION
+        );
+        assert!(matches!(
+            engine.document().blocks[0],
+            DocumentBlock::Text(_)
+        ));
     }
 }
