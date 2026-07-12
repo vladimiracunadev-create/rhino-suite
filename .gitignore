@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+coverage/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+/target/
+/apps/web/public/wasm/*
+!/apps/web/public/wasm/.gitkeep
+/apps/api/data/

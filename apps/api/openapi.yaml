@@ -1,0 +1,123 @@
+openapi: 3.1.0
+info:
+  title: Web Office API
+  version: 0.6.0-phase.2.4
+  description: API inicial para persistencia y versionado de documentos.
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: Servicio disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service, time]
+                properties:
+                  status: { type: string, const: ok }
+                  service: { type: string }
+                  time: { type: string, format: date-time }
+  /api/v1/documents:
+    get:
+      operationId: listDocuments
+      responses:
+        "200":
+          description: Lista de documentos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentRecord" }
+    post:
+      operationId: createDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentRecordInput" }
+      responses:
+        "201":
+          description: Documento creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentRecord" }
+        "422": { $ref: "#/components/responses/Problem" }
+  /api/v1/documents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getDocument
+      responses:
+        "200":
+          description: Documento encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentRecord" }
+        "404": { $ref: "#/components/responses/Problem" }
+    put:
+      operationId: updateDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentRecordInput" }
+      responses:
+        "200":
+          description: Documento actualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentRecord" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+    delete:
+      operationId: deleteDocument
+      responses:
+        "204": { description: Documento eliminado }
+        "404": { $ref: "#/components/responses/Problem" }
+components:
+  schemas:
+    DocumentRecordInput:
+      type: object
+      required: [title, kind, schemaVersion, revision, content]
+      properties:
+        id: { type: string }
+        title: { type: string, minLength: 1 }
+        kind:
+          type: string
+          enum: [document, spreadsheet, presentation, pdf]
+        schemaVersion: { type: integer, minimum: 1 }
+        revision: { type: integer, minimum: 0 }
+        content: {}
+    DocumentRecord:
+      allOf:
+        - { $ref: "#/components/schemas/DocumentRecordInput" }
+        - type: object
+          required: [id, createdAt, updatedAt]
+          properties:
+            id: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, status, detail]
+      properties:
+        type: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+  responses:
+    Problem:
+      description: Error de solicitud
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Problem" }

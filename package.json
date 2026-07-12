@@ -1,0 +1,29 @@
+{
+  "name": "web-office-suite-evolution",
+  "version": "0.6.0-phase.2.4",
+  "private": true,
+  "description": "Suite ofimática web y de escritorio construida desde cero con TypeScript, Rust/WASM y Go.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.12.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @web-office/web dev",
+    "dev:web": "pnpm --filter @web-office/web dev",
+    "dev:api": "go run ./apps/api/cmd/server",
+    "build": "pnpm build:wasm:optional && pnpm build:web",
+    "build:web": "pnpm --filter @web-office/web build",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:wasm:optional": "node scripts/build-wasm.mjs --optional",
+    "test": "pnpm test:ts && pnpm test:go",
+    "test:ts": "pnpm -r --if-present test",
+    "test:go": "go test ./apps/api/...",
+    "test:rust": "cargo test --workspace",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "check": "pnpm typecheck && pnpm test && pnpm build:web",
+    "check:full": "pnpm check && pnpm test:rust && pnpm build:wasm",
+    "format:rust": "cargo fmt --all"
+  }
+}

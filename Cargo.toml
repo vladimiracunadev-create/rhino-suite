@@ -1,0 +1,19 @@
+[workspace]
+members = [
+  "crates/office-core",
+  "crates/office-wasm",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.6.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/your-user/web-office-suite-evolution"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+panic = "abort"
+strip = true

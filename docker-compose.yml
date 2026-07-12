@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      PORT: "8080"
+      DATA_DIR: /data
+      WEB_ORIGIN: http://localhost:8088
+    volumes:
+      - office-data:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "8088:80"
+    restart: unless-stopped
+
+volumes:
+  office-data:
