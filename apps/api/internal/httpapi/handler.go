@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/your-user/web-office-suite-evolution/apps/api/internal/document"
+	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/document"
 )
 
 const maxBodyBytes = 10 << 20

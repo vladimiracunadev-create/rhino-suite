@@ -1,6 +1,6 @@
 # Seguridad
 
-La Fase 1 es un entorno de desarrollo y no debe exponerse directamente a Internet.
+Rhino Suite es todavía un entorno de desarrollo por fases y no debe exponerse directamente a Internet.
 
 - La API aún no implementa autenticación.
 - El CORS debe configurarse mediante `WEB_ORIGIN`.

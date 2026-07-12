@@ -1,3 +1,3 @@
-module github.com/your-user/web-office-suite-evolution/apps/api
+module github.com/vladimiracunadev-create/rhino-suite/apps/api
 
 go 1.23.0

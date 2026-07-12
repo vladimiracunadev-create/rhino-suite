@@ -11,11 +11,10 @@ pnpm build:web
 
 La Fase 2.4 prueba migración v4→v5, comentarios, marcadores, hipervínculos, búsqueda estructurada, control de cambios, aceptación/rechazo y round-trip básico DOCX/ODT.
 
-Existe además un smoke test independiente:
+Existe además un smoke test independiente (20 aserciones, sin dependencias externas):
 
 ```bash
-# Compilar scripts/validate-phase24.ts junto con packages/engine-client/src
-# y ejecutar el JavaScript resultante con Node.js.
+npx tsx scripts/validate-phase24.ts
 ```
 
 ## Go

@@ -49,11 +49,10 @@ Validación completa:
 pnpm check:full
 ```
 
-Validación local de la Fase 2.4 sin dependencias externas:
+Smoke test de la Fase 2.4 (20 aserciones sobre schema v5, revisión, búsqueda y round-trip DOCX/ODT):
 
 ```bash
-# Compilar packages/engine-client y scripts/validate-phase24.ts con TypeScript
-# y ejecutar el resultado con Node.js.
+npx tsx scripts/validate-phase24.ts
 ```
 
 ## Límites de compatibilidad actuales

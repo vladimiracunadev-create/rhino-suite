@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/your-user/web-office-suite-evolution/apps/api/internal/document"
-	"github.com/your-user/web-office-suite-evolution/apps/api/internal/httpapi"
+	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/document"
+	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/httpapi"
 )
 
 func newServer(t *testing.T) *httptest.Server {

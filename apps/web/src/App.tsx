@@ -124,8 +124,8 @@ export function App() {
     <div className="app-shell">
       <aside className="project-sidebar">
         <div className="brand">
-          <span className="brand-mark">WO</span>
-          <div><strong>Web Office</strong><small>Evolution</small></div>
+          <span className="brand-mark">RS</span>
+          <div><strong>Rhino Suite</strong><small>Suite ofimática</small></div>
         </div>
         <button className="new-document" type="button" onClick={() => void createNew()}>＋ Nuevo documento</button>
         <nav aria-label="Fases del proyecto">
