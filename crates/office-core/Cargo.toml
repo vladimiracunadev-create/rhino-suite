@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Núcleo documental independiente de plataforma para Web Office Suite."
+description = "Núcleo documental independiente de plataforma para Rhino Suite."
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

@@ -9,7 +9,7 @@ resolver = "2"
 version = "0.6.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/your-user/web-office-suite-evolution"
+repository = "https://github.com/vladimiracunadev-create/rhino-suite"
 
 [profile.release]
 lto = true

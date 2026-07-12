@@ -1,4 +1,4 @@
-# Web Office Suite Evolution
+# Rhino Suite
 
 Suite ofimática creada desde cero con React/TypeScript, motores Rust/WebAssembly y servicios Go. El repositorio es evolutivo: cada fase conserva las anteriores y migra automáticamente sus formatos.
 

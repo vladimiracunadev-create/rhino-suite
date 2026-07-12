@@ -1,6 +1,6 @@
 # Roadmap maestro
 
-Este documento define la secuencia técnica de **Web Office Suite Evolution**. El producto se construye desde cero y conserva una regla central: el modelo y los motores no dependen del DOM, de React ni del sistema operativo.
+Este documento define la secuencia técnica de **Rhino Suite**. El producto se construye desde cero y conserva una regla central: el modelo y los motores no dependen del DOM, de React ni del sistema operativo.
 
 El roadmap se divide en ocho fases. Cada fase tiene un objetivo, entregables mínimos y una puerta de salida verificable. Las subfases permiten publicar incrementos funcionales sin convertir el repositorio en una colección de prototipos separados.
 

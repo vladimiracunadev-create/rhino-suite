@@ -1,4 +1,4 @@
-//! Núcleo documental independiente de plataforma para Web Office Suite.
+//! Núcleo documental independiente de plataforma para Rhino Suite.
 //!
 //! La Fase 2.4 incorpora revisión, comentarios, hipervínculos, marcadores,
 //! control de cambios y compatibilidad inicial de intercambio. Conserva además
