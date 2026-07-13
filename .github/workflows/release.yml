@@ -1,0 +1,143 @@
+name: Release
+
+# Trigger: push de un tag `v*` (ej: `v0.6.0`).
+# Compila el binario de la API Go para Linux/Windows/macOS y empaqueta el
+# bundle web (pnpm build:web); publica un GitHub Release con los assets.
+#
+# Modelo de confianza (mismo que ci.yml):
+#   - permissions a nivel workflow = contents:read (default deny).
+#   - El job `release` eleva a contents:write solo para crear el release.
+#   - persist-credentials:false en checkout; el release usa `gh` con
+#     GITHUB_TOKEN explícito, no la credencial persistida.
+#   - Acciones third-party pinned a SHA.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-api:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target-name: linux-x86_64
+            ext: ''
+            archive: tar.gz
+          - os: windows-latest
+            target-name: windows-x86_64
+            ext: '.exe'
+            archive: zip
+          - os: macos-latest
+            target-name: macos-arm64
+            ext: ''
+            archive: tar.gz
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.23.x"
+          cache: false # sin caché en workflow de publicación (cache-poisoning)
+      - name: Build API server
+        working-directory: apps/api
+        env:
+          EXT: ${{ matrix.ext }}
+        run: go build -trimpath -ldflags="-s -w" -o "../../rhino-suite-api${EXT}" ./cmd/server
+      - name: Stage release files
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          TARGET: ${{ matrix.target-name }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          DIR="rhino-suite-api-${TAG}-${TARGET}"
+          mkdir -p "dist/${DIR}"
+          cp "rhino-suite-api${EXT}" "dist/${DIR}/"
+          cp README.md LICENSE CHANGELOG.md "dist/${DIR}/"
+      - name: Compress (zip on Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+          TARGET: ${{ matrix.target-name }}
+        run: |
+          $dir = "rhino-suite-api-$env:TAG-$env:TARGET"
+          Compress-Archive -Path "dist/$dir" -DestinationPath "dist/$dir.zip" -Force
+      - name: Compress (tar.gz on Linux/macOS)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          TARGET: ${{ matrix.target-name }}
+        run: |
+          DIR="rhino-suite-api-${TAG}-${TARGET}"
+          tar -czf "dist/${DIR}.tar.gz" -C dist "${DIR}"
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rhino-suite-api-${{ matrix.target-name }}
+          path: dist/*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  build-web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22" # sin caché en workflow de publicación (cache-poisoning)
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:web
+      - name: Package web bundle
+        env:
+          TAG: ${{ github.ref_name }}
+        run: tar -czf "rhino-suite-web-${TAG}.tar.gz" -C apps/web/dist .
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rhino-suite-web
+          path: rhino-suite-web-*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: [build-api, build-web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # crear release + subir assets
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Download all build artifacts
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List release files
+        run: ls -la dist/
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "${TAG}" \
+            --title "Rhino Suite ${TAG}" \
+            --generate-notes \
+            dist/*

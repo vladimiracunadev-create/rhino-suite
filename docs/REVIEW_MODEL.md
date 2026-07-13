@@ -4,13 +4,13 @@ La revisión se almacena en `TextDocument.review` y no depende de elementos DOM.
 
 ## Estructura
 
-```text
-ReviewState
-├── author
-├── trackChanges
-├── comments[]
-├── bookmarks[]
-└── changes[]
+```mermaid
+flowchart LR
+    R["ReviewState"] --> A["author"]
+    R --> T["trackChanges"]
+    R --> C["comments[]"]
+    R --> B["bookmarks[]"]
+    R --> CH["changes[]"]
 ```
 
 ### Comentarios
