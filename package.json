@@ -4,7 +4,7 @@
   "private": true,
   "description": "Suite ofimática web y de escritorio construida desde cero con TypeScript, Rust/WASM y Go.",
   "license": "MIT",
-  "packageManager": "pnpm@11.12.0",
+  "packageManager": "pnpm@11.0.0",
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=11.0.0"
