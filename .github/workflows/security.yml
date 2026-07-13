@@ -1,0 +1,136 @@
+name: Security Scan
+
+# Frontera de confianza del repo. Rhino Suite mezcla TypeScript/WASM en el
+# navegador, un núcleo Rust y una API Go. Este workflow trata el CI como
+# frontera de seguridad:
+#   - CodeQL sobre el código JS/TS (análisis semántico de taint).
+#   - Trojan Source: caracteres bidi/zero-width que ocultan lógica.
+#   - govulncheck (Go) y cargo-audit (Rust) como escaneo *advisory* de
+#     dependencias: reportan al step-summary sin bloquear (deps mínimas).
+#   - Acciones third-party pinned a SHA, persist-credentials:false y
+#     permisos mínimos por job.
+#
+# Los workflows mismos se auditan en .github/workflows/workflow-security.yml.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1' # lunes 04:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. CodeQL: análisis estático de JS/TS ─────────────────────────────────
+  codeql:
+    name: CodeQL (javascript-typescript)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@02c5e83432fe5497fd85b873b6c9f16a8578e1d9 # v3
+        with:
+          languages: javascript-typescript
+      - name: Analizar
+        uses: github/codeql-action/analyze@02c5e83432fe5497fd85b873b6c9f16a8578e1d9 # v3
+        with:
+          category: "/language:javascript-typescript"
+
+  # ── 2. Trojan Source: bidi + zero-width en código fuente ──────────────────
+  trojan_source:
+    name: Trojan Source (bidi + zero-width)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      # CVE-2021-42574: caracteres bidi Unicode pueden ocultar lógica maliciosa
+      # haciendo que el código se vea distinto al humano vs. al compilador.
+      - name: Detectar caracteres Unicode bidireccionales
+        run: |
+          if git ls-files -z | xargs -0 grep -PlU $'\x{202a}|\x{202b}|\x{202c}|\x{202d}|\x{202e}|\x{2066}|\x{2067}|\x{2068}|\x{2069}|\x{200f}|\x{061c}' 2>/dev/null; then
+            echo "::error::Caracteres bidireccionales detectados (Trojan Source - CVE-2021-42574)"
+            exit 1
+          fi
+          echo "OK: sin Trojan Source"
+      - name: Detectar zero-width en código fuente
+        run: |
+          if git ls-files -z '*.rs' '*.go' '*.ts' '*.tsx' '*.js' '*.mjs' '*.yml' '*.yaml' \
+             | xargs -0 grep -PlU $'\x{200B}|\x{200C}|\x{200D}|\x{FEFF}' 2>/dev/null; then
+            echo "::error::Caracteres zero-width detectados en código fuente"
+            exit 1
+          fi
+          echo "OK: sin zero-width sospechosos"
+
+  # ── 3. govulncheck: vulnerabilidades alcanzables en deps Go (advisory) ────
+  govulncheck:
+    name: govulncheck (Go, advisory)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: apps/api/go.mod
+      - name: Install govulncheck (pinned)
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+      - name: Run govulncheck (report-only)
+        working-directory: apps/api
+        run: |
+          set +e
+          "$(go env GOPATH)/bin/govulncheck" ./... 2>&1 | tee /tmp/govulncheck.log
+          {
+            echo "## govulncheck (Go)"
+            echo ""
+            echo '```'
+            cat /tmp/govulncheck.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+  # ── 4. cargo-audit: advisories RustSec sobre deps Cargo (advisory) ────────
+  cargo_audit:
+    name: cargo-audit (Rust, advisory)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+      - name: Install cargo-audit (pinned)
+        run: cargo install cargo-audit --version 0.21.2 --locked
+      - name: Run cargo-audit (report-only)
+        run: |
+          set +e
+          cargo audit --color never 2>&1 | tee /tmp/cargo-audit.log
+          {
+            echo "## cargo-audit (Rust)"
+            echo ""
+            echo '```'
+            cat /tmp/cargo-audit.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
