@@ -4,14 +4,13 @@
 
 La interfaz, los motores y los servicios de red son componentes distintos. Las reglas importantes no pueden depender del DOM, de React ni de Windows.
 
-```text
-React + TypeScript
-        │ comandos y fragmentos JSON versionados
-        ▼
-Rust office-core ──► WebAssembly en navegador
-        │            Rust nativo en Tauri
-        ▼
-Go API ──► metadatos, archivos, versiones y colaboración
+```mermaid
+flowchart TD
+    UI["React + TypeScript"] -- "comandos y fragmentos JSON versionados" --> CORE
+    CORE["Rust · office-core"] --> WASM["WebAssembly en navegador"]
+    CORE --> TAURI["Rust nativo en Tauri (Fase 7)"]
+    UI --> API["Go API"]
+    API --> STORE["metadatos, archivos, versiones y colaboración"]
 ```
 
 ## Capas vigentes en la Fase 2.4
@@ -38,13 +37,11 @@ Servicio Go sin dependencias externas. Expone API REST y persiste cada documento
 
 ## Flujo de recursos de imagen
 
-```text
-archivo local
-   │ FileReader
-   ▼
-ImageResource ──► resources.images[resourceId]
-   │
-   └────────────► ImageBlock(resourceId, geometría, alt, caption)
+```mermaid
+flowchart TD
+    FILE["archivo local"] -- "FileReader" --> RES["ImageResource"]
+    RES --> STORE["resources.images[resourceId]"]
+    RES --> BLOCK["ImageBlock(resourceId, geometría, alt, caption)"]
 ```
 
 Separar contenido binario y bloque prepara carga diferida, deduplicación y almacenamiento S3 sin alterar el modelo de layout.

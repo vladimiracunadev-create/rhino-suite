@@ -2,6 +2,28 @@
 
 Punto de entrada a la documentación de **Rhino Suite**, organizado **por perfil de lectura** y **por etapa**. Si no sabes por dónde empezar, elige tu perfil.
 
+```mermaid
+flowchart TD
+    README["📄 README"] --> INDEX["📖 INDEX (estás aquí)"]
+    INDEX --> ENTENDER["🧭 Entender"]
+    INDEX --> USAR["🛠️ Usar y desarrollar"]
+    INDEX --> MODELO["🧩 Modelo"]
+    INDEX --> ADR["🏛️ ADR"]
+
+    ENTENDER --> ARCH["Arquitectura"]
+    ENTENDER --> ROAD["Roadmap"]
+    ENTENDER --> GLO["Glosario · FAQ"]
+    USAR --> GS["Getting Started"]
+    USAR --> VAL["Validación"]
+    USAR --> API["API Go"]
+    MODELO --> FMT["Formato interno v5"]
+    MODELO --> REV["Modelo de revisión"]
+    MODELO --> COMPAT["Compatibilidad DOCX/ODT"]
+
+    classDef hub fill:#1f6feb,stroke:#0b3d91,color:#fff;
+    class README,INDEX hub;
+```
+
 ## Elige tu camino
 
 | Soy… | Empieza por |

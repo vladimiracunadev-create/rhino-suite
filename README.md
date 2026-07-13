@@ -26,6 +26,36 @@ Rhino Suite es una suite ofimática que se construye **desde el modelo hacia afu
 
 El editor de documentos (Fase 2) ya es funcional; hoja de cálculo, presentaciones, PDF, colaboración y escritorio llegan en fases posteriores sin romper lo anterior.
 
+```mermaid
+flowchart TD
+    UI["🖥️ React + TypeScript<br/><code>apps/web</code>"]
+    subgraph ENGINE["⚙️ Motor documental"]
+        CORE["🦀 office-core<br/>Rust · reglas del modelo"]
+        WASM["🕸️ office-wasm<br/>WebAssembly · wasm-bindgen"]
+        TS["🟦 engine-client<br/>TypeScript · respaldo compatible"]
+    end
+    API["🐹 API Go<br/><code>apps/api</code>"]
+    IDB[("🗄️ IndexedDB")]
+    DISK[("💾 Almacenamiento atómico")]
+
+    UI -- "comandos y fragmentos JSON versionados" --> ENGINE
+    CORE --> WASM
+    WASM -- "en el navegador" --> UI
+    TS -. "en desarrollo, sin Rust" .-> UI
+    UI -- "persistencia local" --> IDB
+    UI -- "REST · schema v5" --> API
+    API --> DISK
+
+    classDef rust fill:#f74c00,stroke:#7a2600,color:#fff;
+    classDef ts fill:#3178c6,stroke:#1b4b86,color:#fff;
+    classDef go fill:#00add8,stroke:#00728f,color:#fff;
+    class CORE,WASM rust;
+    class UI,TS ts;
+    class API go;
+```
+
+> **Regla central:** el DOM y React son una *proyección* del modelo; el estado vivo es el JSON (schema v5), no el HTML. Detalle en [Arquitectura](docs/ARCHITECTURE.md).
+
 ## 🧩 Funcionalidad vigente (Fase 2.4)
 
 - **Modelo documental estructurado** con Unicode, bus de comandos y undo/redo.
@@ -89,6 +119,34 @@ rhino-suite/
 ├── docs/               # Documentación (empieza por docs/INDEX.md)
 └── deploy/             # Artefactos de despliegue
 ```
+
+## 🗺️ Roadmap
+
+Ocho fases; cada una conserva las anteriores y tiene una puerta de salida verificable. Estás aquí → **Fase 2.4**.
+
+```mermaid
+flowchart LR
+    P1["1 · Plataforma<br/>y núcleo"]:::done --> P2["2 · Documentos<br/>2.4 entregada"]:::done
+    P2 --> P3["3 · Hojas<br/>de cálculo"]:::next
+    P3 --> P4["4 · Presentaciones"]:::todo
+    P4 --> P5["5 · PDF"]:::todo
+    P5 --> P6["6 · Colaboración"]:::todo
+    P6 --> P7["7 · Escritorio"]:::todo
+    P7 --> P8["8 · Compatibilidad<br/>y endurecimiento"]:::todo
+
+    classDef done fill:#1a7f37,stroke:#0d4a20,color:#fff;
+    classDef next fill:#bf8700,stroke:#7a5700,color:#fff;
+    classDef todo fill:#eaeef2,stroke:#afb8c1,color:#24292f;
+```
+
+| Fase | Producto | Estado |
+|---|---|---|
+| 1 | Plataforma y núcleo común | ✅ Completada |
+| 2 | Editor de documentos | ✅ Completada — 2.4 entregada |
+| 3 | Hojas de cálculo | 🔜 Siguiente (3.1) |
+| 4–8 | Presentaciones · PDF · Colaboración · Escritorio · Compatibilidad | 🗓️ Planificadas |
+
+Detalle, objetivos y puertas de salida en [ROADMAP.md](docs/ROADMAP.md).
 
 ## 📚 Documentación
 
