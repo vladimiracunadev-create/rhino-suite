@@ -42,6 +42,15 @@ export interface DriveEntry {
   folderId: string;
   starred: boolean;
   trashed: boolean;
+  /**
+   * Extracto y conteo calculados una sola vez al construir el catálogo. Recorrer
+   * el documento entero es caro, y la lista lo pediría en cada render y en cada
+   * comparación al ordenar.
+   */
+  preview: string;
+  wordCount: number;
+  /** Texto en minúsculas para filtrar sin recorrer el documento otra vez. */
+  searchText: string;
 }
 
 export interface DriveCatalog {
@@ -173,6 +182,25 @@ export async function saveDocumentToCloud(document: TextDocument, folderId?: str
     }),
   );
   return elevated;
+}
+
+/**
+ * Recupera un documento por su id, mire donde mire: primero la nube (la copia
+ * de referencia) y, si no está o no hay conexión, la copia local. Es lo que
+ * permite abrir un documento directamente desde su URL.
+ */
+export async function findDocumentById(id: string): Promise<TextDocument | null> {
+  try {
+    const record = await getCloudRecord(id);
+    if (record) {
+      const document = documentFromRecord(record);
+      if (document) return document;
+    }
+  } catch {
+    /* sin nube: se intenta con la copia local */
+  }
+  const local = await listLocalDocuments();
+  return local.find((document) => document.metadata.id === id) ?? null;
 }
 
 /** Elimina un documento de la nube de forma permanente. */
@@ -327,6 +355,17 @@ export async function listDriveCatalog(): Promise<DriveCatalog> {
 
   const byId = new Map<string, DriveEntry>();
 
+  /** Deriva los campos que la lista necesita, recorriendo el documento una vez. */
+  const derive = (document: TextDocument) => {
+    const text = documentPlainText(document).replace(/\s+/g, " ").trim();
+    const words = text ? text.split(" ").length : 0;
+    return {
+      preview: text.length <= 180 ? text : `${text.slice(0, 180).trimEnd()}…`,
+      wordCount: words,
+      searchText: `${document.metadata.title} ${text}`.toLowerCase(),
+    };
+  };
+
   for (const record of records) {
     const document = documentFromRecord(record);
     if (!document) continue; // registro corrupto: no se inventa un documento vacío
@@ -339,6 +378,7 @@ export async function listDriveCatalog(): Promise<DriveCatalog> {
       folderId: record.folderId ?? "",
       starred: Boolean(record.starred),
       trashed: Boolean(record.trashedAt),
+      ...derive(document),
     });
   }
 
@@ -354,6 +394,7 @@ export async function listDriveCatalog(): Promise<DriveCatalog> {
         folderId: "",
         starred: false,
         trashed: false,
+        ...derive(document),
       });
       continue;
     }
@@ -368,6 +409,8 @@ export async function listDriveCatalog(): Promise<DriveCatalog> {
       location: "both",
       localRevision,
       outOfSync: cloudRevision !== localRevision,
+      // Si gana la copia local, sus derivados hay que recalcularlos.
+      ...(newest === existing.document ? {} : derive(newest)),
     });
   }
 

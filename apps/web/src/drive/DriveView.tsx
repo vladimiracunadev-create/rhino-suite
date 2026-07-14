@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import {
-  documentPreview,
-  documentWordCount,
   type DriveCatalog,
   type DriveEntry,
   type DriveFolder,
   type TextDocument,
 } from "@web-office/engine-client";
 import { useSettings, type Translator } from "../settings/SettingsContext";
+import type { DriveSection as Section } from "../routing";
 
 export type DownloadFormat = "docx" | "odt" | "json";
-type Section = "recent" | "files" | "starred" | "trash";
 type ViewMode = "grid" | "list";
 type SortMode = "recent" | "name" | "words";
 
@@ -35,6 +33,11 @@ interface DriveViewProps {
   onSyncAll: () => void;
   /** Documento abierto ahora mismo en el editor, si lo hay. */
   openDocumentId: string | null;
+  /** Sección y carpeta vienen de la ruta: la URL manda. */
+  section: Section;
+  folderId: string;
+  onSectionChange: (section: Section) => void;
+  onFolderChange: (folderId: string) => void;
 }
 
 const relativeTime = (timestamp: number, t: Translator, locale: string): string => {
@@ -60,12 +63,15 @@ const locationBadge = (
 };
 
 export function DriveView(props: DriveViewProps) {
-  const { catalog, loading, onOpen, onCreate } = props;
+  const { catalog, loading, onOpen, onCreate, section, folderId } = props;
   const { t, lang } = useSettings();
 
-  const [section, setSection] = useState<Section>("recent");
-  const [folderId, setFolderId] = useState("");
+  const setSection = props.onSectionChange;
+  const setFolderId = props.onFolderChange;
   const [dragging, setDragging] = useState(false);
+  const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const [draggingDocId, setDraggingDocId] = useState<string | null>(null);
+  const [dropFolderId, setDropFolderId] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewMode>("grid");
@@ -140,17 +146,15 @@ export function DriveView(props: DriveViewProps) {
       // Al buscar, se busca en toda la unidad, no solo en la carpeta actual.
       return needle ? true : entry.folderId === folderId;
     });
-    if (needle) {
-      list = list.filter((entry) => {
-        const title = (entry.document.metadata.title || "").toLowerCase();
-        return title.includes(needle) || documentPreview(entry.document, 400).toLowerCase().includes(needle);
-      });
-    }
+    // El texto de búsqueda y el conteo vienen precalculados con el catálogo: no
+    // se vuelve a recorrer el documento por cada tecla ni por cada comparación.
+    if (needle) list = list.filter((entry) => entry.searchText.includes(needle));
+
     const sorted = [...list];
     if (sort === "name") {
       sorted.sort((a, b) => (a.document.metadata.title || "").localeCompare(b.document.metadata.title || "", lang));
     } else if (sort === "words") {
-      sorted.sort((a, b) => documentWordCount(b.document) - documentWordCount(a.document));
+      sorted.sort((a, b) => b.wordCount - a.wordCount);
     } else {
       sorted.sort((a, b) => b.document.metadata.updatedAt - a.document.metadata.updatedAt);
     }
@@ -282,7 +286,9 @@ export function DriveView(props: DriveViewProps) {
             type="button"
             className={`section-tab ${section === item.key ? "active" : ""}`}
             aria-pressed={section === item.key}
-            onClick={() => { setSection(item.key); setFolderId(""); setQuery(""); }}
+            /* Solo cambia la sección: onSectionChange ya vuelve a la raíz. Llamar
+               además a onFolderChange pisaba la sección recién elegida. */
+            onClick={() => { setSection(item.key); setQuery(""); }}
           >
             <span className="section-ico">{item.icon}</span>
             {item.label}
@@ -404,7 +410,28 @@ export function DriveView(props: DriveViewProps) {
                 {visibleFolders.map((folder) => {
                   const count = entries.filter((entry) => !entry.trashed && entry.folderId === folder.id).length;
                   return (
-                    <article className="folder-card" key={folder.id} onDoubleClick={() => setFolderId(folder.id)}>
+                    <article
+                      className={`folder-card ${dropFolderId === folder.id ? "drop-target" : ""}`}
+                      key={folder.id}
+                      onDragOver={(event) => {
+                        if (!draggingDocId) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.dataTransfer.dropEffect = "move";
+                        setDropFolderId(folder.id);
+                      }}
+                      onDragLeave={() => setDropFolderId((current) => (current === folder.id ? null : current))}
+                      onDrop={(event) => {
+                        if (!draggingDocId) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const dragged = entries.find((entry) => entry.document.metadata.id === draggingDocId);
+                        if (dragged && dragged.folderId !== folder.id) props.onMove(dragged.document, folder.id);
+                        setDraggingDocId(null);
+                        setDropFolderId(null);
+                      }}
+                      onDoubleClick={() => setFolderId(folder.id)}
+                    >
                       <button type="button" className="folder-main" onClick={() => setFolderId(folder.id)}>
                         <span className="folder-ico">📁</span>
                         <span className="folder-text">
@@ -446,11 +473,27 @@ export function DriveView(props: DriveViewProps) {
                 {visibleDocs.map((entry) => {
                   const meta = entry.document.metadata;
                   const badge = locationBadge(entry.location, t);
-                  const words = documentWordCount(entry.document);
+                  const words = entry.wordCount;
                   const isRenaming = renamingId === meta.id;
                   const inTrash = entry.trashed;
                   return (
-                    <article key={meta.id} className="file-card" onDoubleClick={() => !inTrash && onOpen(entry.document)}>
+                    <article
+                      key={meta.id}
+                      className={`file-card ${draggingDocId === meta.id ? "dragging" : ""}`}
+                      draggable={!inTrash}
+                      onDragStart={(event) => {
+                        setDraggingDocId(meta.id);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", meta.id);
+                      }}
+                      onDragEnd={() => { setDraggingDocId(null); setDropFolderId(null); }}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setMenuFor(meta.id);
+                        setMenuPoint({ x: event.clientX, y: event.clientY });
+                      }}
+                      onDoubleClick={() => !inTrash && onOpen(entry.document)}
+                    >
                       <div
                         className="file-thumb"
                         onClick={() => !inTrash && onOpen(entry.document)}
@@ -458,7 +501,7 @@ export function DriveView(props: DriveViewProps) {
                       >
                         <div className="file-thumb-page">
                           <span className="file-thumb-lines" />
-                          <p className="file-thumb-preview">{documentPreview(entry.document, 180) || t("emptyDoc")}</p>
+                          <p className="file-thumb-preview">{entry.preview || t("emptyDoc")}</p>
                         </div>
                         <span className="file-kind">W</span>
                         {entry.starred && !inTrash ? <span className="file-star-flag" aria-hidden>★</span> : null}
@@ -522,10 +565,16 @@ export function DriveView(props: DriveViewProps) {
                                   type="button"
                                   title={t("moreActions")}
                                   aria-expanded={menuFor === meta.id}
-                                  onClick={() => setMenuFor(menuFor === meta.id ? null : meta.id)}
+                                  onClick={() => { setMenuPoint(null); setMenuFor(menuFor === meta.id ? null : meta.id); }}
                                 >⋯</button>
                                 {menuFor === meta.id ? (
-                                  <div className="card-menu" role="menu">
+                                  <div
+                                    className="card-menu"
+                                    role="menu"
+                                    /* Con clic derecho el menú sale donde está el cursor;
+                                       con el botón ⋯ se ancla a la tarjeta. */
+                                    style={menuPoint ? { position: "fixed", left: menuPoint.x, top: menuPoint.y, right: "auto", bottom: "auto" } : undefined}
+                                  >
                                     <button type="button" onClick={() => startRename(entry.document)}>✎ {t("rename")}</button>
                                     <button type="button" onClick={() => { setMenuFor(null); setMovingDoc(entry.document); }}>
                                       📁 {t("moveTo")}

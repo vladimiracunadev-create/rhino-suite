@@ -6,6 +6,7 @@ import {
   deleteFolder,
   exportDocx,
   exportOdt,
+  findDocumentById,
   importDocument,
   listDriveCatalog,
   moveDocumentToFolder,
@@ -28,8 +29,8 @@ import { DriveView, type DownloadFormat } from "./drive/DriveView";
 import { RhinoMark } from "./branding/RhinoMark";
 import { SettingsControl } from "./settings/SettingsControl";
 import { useSettings } from "./settings/SettingsContext";
+import { parsePath, routeToPath, routesEqual, type DriveSection, type Route } from "./routing";
 
-type View = "drive" | "editor";
 type SaveState = "saved" | "saving" | "dirty" | "local-only";
 
 const newId = () => `doc-${crypto.randomUUID()}`;
@@ -61,7 +62,7 @@ export function App() {
   const { t } = useSettings();
   const engineRef = useRef<OfficeEngineClient | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
-  const [view, setView] = useState<View>("drive");
+  const [route, setRoute] = useState<Route>(() => parsePath(window.location.pathname));
   const [documentModel, setDocumentModel] = useState<TextDocument | null>(null);
   const [catalog, setCatalog] = useState<DriveCatalog | null>(null);
   const [driveLoading, setDriveLoading] = useState(true);
@@ -80,25 +81,40 @@ export function App() {
     }
   }, []);
 
+  /** Navega escribiendo la URL: el historial del navegador es el estado. */
+  const navigate = useCallback((next: Route, replace = false) => {
+    setRoute((current) => {
+      if (routesEqual(current, next)) return current;
+      const path = routeToPath(next);
+      if (replace) window.history.replaceState(null, "", path);
+      else window.history.pushState(null, "", path);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     void refreshCatalog();
+    const onPopState = () => setRoute(parsePath(window.location.pathname));
+    window.addEventListener("popstate", onPopState);
     return () => {
+      window.removeEventListener("popstate", onPopState);
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };
   }, [refreshCatalog]);
 
-  const activateEngine = useCallback((engine: OfficeEngineClient) => {
+  const activateEngine = useCallback((engine: OfficeEngineClient, replaceUrl = false) => {
     engineRef.current = engine;
     setEngineKind(engine.kind);
-    setDocumentModel(engine.getDocument());
+    const model = engine.getDocument();
+    setDocumentModel(model);
     setSaveState("saved");
-    setView("editor");
+    navigate({ view: "editor", documentId: model.metadata.id }, replaceUrl);
     setMessage(
       engine.kind === "rust-wasm"
         ? "Motor documental Rust/WebAssembly activo."
         : "Motor TypeScript compatible activo.",
     );
-  }, []);
+  }, [navigate]);
 
   const persist = useCallback(async (model: TextDocument | null = documentModel) => {
     if (!model) return;
@@ -139,14 +155,36 @@ export function App() {
     }
   }, [activateEngine, refreshCatalog]);
 
-  const openDocument = useCallback(async (saved: TextDocument) => {
+  const openDocument = useCallback(async (saved: TextDocument, replaceUrl = false) => {
     try {
-      activateEngine(await restoreOfficeEngine(JSON.stringify(saved)));
+      activateEngine(await restoreOfficeEngine(JSON.stringify(saved)), replaceUrl);
       setMessage(`«${saved.metadata.title || "Sin título"}» abierto.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo abrir el documento.");
     }
   }, [activateEngine]);
+
+  /**
+   * La URL es la fuente de verdad: si apunta a un documento que no es el que
+   * está cargado (recarga, enlace compartido, atrás/adelante), se busca y se
+   * abre. Si ya no existe, se vuelve a la unidad en vez de dejar la vista rota.
+   */
+  useEffect(() => {
+    if (route.view !== "editor") return;
+    if (documentModel?.metadata.id === route.documentId) return;
+    let active = true;
+    void (async () => {
+      const found = await findDocumentById(route.documentId);
+      if (!active) return;
+      if (!found) {
+        setMessage("Ese documento ya no existe.");
+        navigate({ view: "drive", section: "recent", folderId: "" }, true);
+        return;
+      }
+      await openDocument(found, true);
+    })();
+    return () => { active = false; };
+  }, [route, documentModel, openDocument, navigate]);
 
   const openImported = useCallback(async (imported: TextDocument) => {
     try {
@@ -163,14 +201,14 @@ export function App() {
     handleDocumentChange(engine.apply({ type: "setTitle", title }));
   }, [handleDocumentChange]);
 
-  const goToDrive = useCallback(async () => {
+  const goToDrive = useCallback(async (section: DriveSection = "recent", folderId = "") => {
     if (documentModel && (saveState === "dirty" || saveState === "saving")) {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
       await persist(documentModel);
     }
-    setView("drive");
+    navigate({ view: "drive", section, folderId });
     void refreshCatalog();
-  }, [documentModel, saveState, persist, refreshCatalog]);
+  }, [documentModel, saveState, persist, refreshCatalog, navigate]);
 
   // ── Acciones de la unidad de archivos ──────────────────────────────────────
   const renameFromDrive = useCallback(async (document: TextDocument, title: string) => {
@@ -329,15 +367,15 @@ export function App() {
         <nav className="rail-nav" aria-label="Navegación principal">
           <button
             type="button"
-            className={`rail-link ${view === "drive" ? "active" : ""}`}
-            onClick={() => void goToDrive()}
+            className={`rail-link ${route.view === "drive" ? "active" : ""}`}
+            onClick={() => void goToDrive("files")}
           >
             <span className="rail-ico"><RhinoMark size={17} /></span> {t("myFiles")}
           </button>
           <button
             type="button"
-            className={`rail-link ${view === "editor" ? "active" : ""} ${documentModel ? "has-doc" : ""}`}
-            onClick={() => setView("editor")}
+            className={`rail-link ${route.view === "editor" ? "active" : ""} ${documentModel ? "has-doc" : ""}`}
+            onClick={() => documentModel && navigate({ view: "editor", documentId: documentModel.metadata.id })}
             disabled={!documentModel}
             title={documentModel ? documentModel.metadata.title || t("untitled") : t("editor")}
           >
@@ -378,10 +416,14 @@ export function App() {
       </aside>
 
       <main className="stage">
-        {view === "drive" ? (
+        {route.view === "drive" ? (
           <DriveView
             catalog={catalog}
             loading={driveLoading}
+            section={route.section}
+            folderId={route.folderId}
+            onSectionChange={(section) => navigate({ view: "drive", section, folderId: "" })}
+            onFolderChange={(folderId) => navigate({ view: "drive", section: "files", folderId })}
             onOpen={(document) => void openDocument(document)}
             onCreate={(folderId) => void createNew(folderId)}
             onRename={(document, title) => void renameFromDrive(document, title)}

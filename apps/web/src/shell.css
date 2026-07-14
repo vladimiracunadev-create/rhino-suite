@@ -443,6 +443,16 @@ body { background: var(--rs-bg); color: var(--rs-text); }
 .drop-card strong { font-size: 15px; }
 .drop-card small { color: var(--rs-faint); font-size: 12px; }
 
+/* Arrastrar un documento sobre una carpeta */
+.file-card[draggable="true"] { cursor: grab; }
+.file-card.dragging { opacity: .45; transform: none; }
+.folder-card.drop-target {
+  border-color: var(--rs-accent);
+  background: var(--rs-accent-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rs-accent) 22%, transparent);
+}
+.folder-card.drop-target .folder-text strong { color: var(--rs-accent); }
+
 .loc-badge.open { background: color-mix(in srgb, var(--rs-green) 14%, var(--rs-surface)); color: var(--rs-green); }
 .loc-badge.folder { background: var(--rs-surface-2); color: var(--rs-muted); }
 
