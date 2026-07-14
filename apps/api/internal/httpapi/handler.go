@@ -57,7 +57,13 @@ func (handler *Handler) listDocuments(writer http.ResponseWriter, request *http.
 		handler.internalError(writer, request, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, map[string]any{"items": records})
+	// Sin contenido: el catálogo se pinta con el extracto y el conteo guardados.
+	// El documento completo se pide al abrirlo.
+	summaries := make([]document.Summary, 0, len(records))
+	for _, record := range records {
+		summaries = append(summaries, record.Summary())
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"items": summaries})
 }
 
 func (handler *Handler) createDocument(writer http.ResponseWriter, request *http.Request) {
@@ -164,8 +170,9 @@ func (handler *Handler) loadDocument(writer http.ResponseWriter, request *http.R
 	return record, true
 }
 
+// saveDocument persiste cambios de organización. No toca UpdatedAt: esa fecha
+// es cuándo se modificó el documento, y destacarlo o moverlo no lo modifica.
 func (handler *Handler) saveDocument(writer http.ResponseWriter, request *http.Request, record document.Record) {
-	record.UpdatedAt = time.Now().UTC()
 	if err := handler.store.Put(request.Context(), record); err != nil {
 		writeProblem(writer, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -326,8 +333,8 @@ func (handler *Handler) deleteFolder(writer http.ResponseWriter, request *http.R
 		if record.FolderID != id {
 			continue
 		}
+		// Cambiar de carpeta no modifica el documento: UpdatedAt no se toca.
 		record.FolderID = document.Root
-		record.UpdatedAt = time.Now().UTC()
 		if err := handler.store.Put(request.Context(), record); err != nil {
 			handler.internalError(writer, request, err)
 			return

@@ -20,12 +20,51 @@ type Record struct {
 	Revision int64  `json:"revision"`
 	// Campos de organización. Solo se modifican a través de los endpoints de
 	// acción (move, star, trash, restore); guardar el documento los conserva.
-	FolderID  string          `json:"folderId"`
-	Starred   bool            `json:"starred"`
-	TrashedAt *time.Time      `json:"trashedAt"`
+	FolderID  string     `json:"folderId"`
+	Starred   bool       `json:"starred"`
+	TrashedAt *time.Time `json:"trashedAt"`
+	// Derivados del contenido que el catálogo necesita para pintar la lista.
+	// Se guardan aquí para poder listar sin devolver el documento entero.
+	Preview   string          `json:"preview"`
+	WordCount int             `json:"wordCount"`
 	CreatedAt time.Time       `json:"createdAt"`
 	UpdatedAt time.Time       `json:"updatedAt"`
 	Content   json.RawMessage `json:"content"`
+}
+
+// Summary es el registro sin el contenido. Es lo que devuelve el listado: una
+// unidad con cien documentos no tiene por qué transferir cien documentos
+// completos solo para dibujar sus tarjetas.
+type Summary struct {
+	ID        string     `json:"id"`
+	Title     string     `json:"title"`
+	Kind      string     `json:"kind"`
+	Schema    int        `json:"schemaVersion"`
+	Revision  int64      `json:"revision"`
+	FolderID  string     `json:"folderId"`
+	Starred   bool       `json:"starred"`
+	TrashedAt *time.Time `json:"trashedAt"`
+	Preview   string     `json:"preview"`
+	WordCount int        `json:"wordCount"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+}
+
+func (record Record) Summary() Summary {
+	return Summary{
+		ID:        record.ID,
+		Title:     record.Title,
+		Kind:      record.Kind,
+		Schema:    record.Schema,
+		Revision:  record.Revision,
+		FolderID:  record.FolderID,
+		Starred:   record.Starred,
+		TrashedAt: record.TrashedAt,
+		Preview:   record.Preview,
+		WordCount: record.WordCount,
+		CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt,
+	}
 }
 
 // Folder es un contenedor de documentos dentro de la unidad de archivos.

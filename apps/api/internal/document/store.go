@@ -55,6 +55,12 @@ func (store *FileStore) List(_ context.Context) ([]Record, error) {
 		if readErr != nil {
 			return nil, readErr
 		}
+		// Registros guardados antes de que existieran estos campos: se derivan al
+		// vuelo para que el catálogo no salga vacío. Se persisten en el siguiente
+		// guardado; recalcularlos aquí es barato comparado con no mostrarlos.
+		if record.Preview == "" && record.WordCount == 0 && len(record.Content) > 0 {
+			record.Preview, record.WordCount = Derive(record.Content)
+		}
 		records = append(records, record)
 	}
 	sort.Slice(records, func(i, j int) bool {
@@ -73,6 +79,10 @@ func (store *FileStore) Put(_ context.Context, record Record) error {
 	if err := record.Validate(); err != nil {
 		return err
 	}
+	// El extracto y el conteo se derivan aquí, no se aceptan del cliente: son
+	// lo que el catálogo muestra sin abrir el documento, y deben corresponder
+	// siempre con el contenido que se está guardando.
+	record.Preview, record.WordCount = Derive(record.Content)
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	payload, err := json.MarshalIndent(record, "", "  ")

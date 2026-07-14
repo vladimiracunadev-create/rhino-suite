@@ -20,6 +20,7 @@ import {
   trashDocument,
   updateFolder,
   type DriveCatalog,
+  type DriveEntry,
   type DriveFolder,
   type OfficeEngineClient,
   type TextDocument,
@@ -186,6 +187,21 @@ export function App() {
     return () => { active = false; };
   }, [route, documentModel, openDocument, navigate]);
 
+  /**
+   * Abrir desde el catálogo: la ficha no trae el documento, así que aquí es
+   * donde se pide el contenido. Basta con poner la URL: el efecto de arriba lo
+   * carga, y así abrir por enlace y abrir con un clic recorren el mismo camino.
+   */
+  const openFromDrive = useCallback((entry: DriveEntry) => {
+    navigate({ view: "editor", documentId: entry.id });
+  }, [navigate]);
+
+  const downloadFromDrive = useCallback(async (entry: DriveEntry, format: DownloadFormat) => {
+    const document = await findDocumentById(entry.id);
+    if (!document) { setMessage("Ese documento ya no existe."); return; }
+    downloadDocument(document, format);
+  }, []);
+
   const openImported = useCallback(async (imported: TextDocument) => {
     try {
       activateEngine(await restoreOfficeEngine(JSON.stringify(imported)));
@@ -211,7 +227,10 @@ export function App() {
   }, [documentModel, saveState, persist, refreshCatalog, navigate]);
 
   // ── Acciones de la unidad de archivos ──────────────────────────────────────
-  const renameFromDrive = useCallback(async (document: TextDocument, title: string) => {
+  /** El título vive dentro del documento, así que renombrar exige traerlo. */
+  const renameFromDrive = useCallback(async (entry: DriveEntry, title: string) => {
+    const document = await findDocumentById(entry.id);
+    if (!document) { setMessage("Ese documento ya no existe."); return; }
     const renamed: TextDocument = {
       ...document,
       metadata: { ...document.metadata, title, revision: document.metadata.revision + 1, updatedAt: Date.now() },
@@ -220,7 +239,9 @@ export function App() {
     void refreshCatalog();
   }, [refreshCatalog]);
 
-  const duplicateFromDrive = useCallback(async (document: TextDocument) => {
+  const duplicateFromDrive = useCallback(async (entry: DriveEntry) => {
+    const document = await findDocumentById(entry.id);
+    if (!document) { setMessage("Ese documento ya no existe."); return; }
     const now = Date.now();
     const copy: TextDocument = normalizeDocument({
       ...document,
@@ -233,14 +254,14 @@ export function App() {
         updatedAt: now,
       },
     });
-    await saveDocumentEverywhere(copy);
+    await saveDocumentEverywhere(copy, entry.folderId);
     setMessage(`Copia creada: «${copy.metadata.title}».`);
     void refreshCatalog();
   }, [refreshCatalog]);
 
-  const deleteFromDrive = useCallback(async (document: TextDocument) => {
-    await deleteDocumentEverywhere(document.metadata.id);
-    setMessage(`«${document.metadata.title || "Documento"}» eliminado definitivamente.`);
+  const deleteFromDrive = useCallback(async (entry: DriveEntry) => {
+    await deleteDocumentEverywhere(entry.id);
+    setMessage(`«${entry.title || "Documento"}» eliminado definitivamente.`);
     void refreshCatalog();
   }, [refreshCatalog]);
 
@@ -255,33 +276,24 @@ export function App() {
     void refreshCatalog();
   }, [refreshCatalog]);
 
-  const starFromDrive = useCallback((document: TextDocument, starred: boolean) => {
-    const name = document.metadata.title || "Documento";
+  const starFromDrive = useCallback((entry: DriveEntry, starred: boolean) => {
+    const name = entry.title || "Documento";
     void runDriveAction(
-      () => starDocument(document, starred),
+      () => starDocument(entry.id, starred),
       starred ? `«${name}» destacado.` : `«${name}» ya no está destacado.`,
     );
   }, [runDriveAction]);
 
-  const moveFromDrive = useCallback((document: TextDocument, folderId: string) => {
-    void runDriveAction(
-      () => moveDocumentToFolder(document, folderId),
-      `«${document.metadata.title || "Documento"}» movido.`,
-    );
+  const moveFromDrive = useCallback((entry: DriveEntry, folderId: string) => {
+    void runDriveAction(() => moveDocumentToFolder(entry.id, folderId), `«${entry.title || "Documento"}» movido.`);
   }, [runDriveAction]);
 
-  const trashFromDrive = useCallback((document: TextDocument) => {
-    void runDriveAction(
-      () => trashDocument(document),
-      `«${document.metadata.title || "Documento"}» está en la papelera.`,
-    );
+  const trashFromDrive = useCallback((entry: DriveEntry) => {
+    void runDriveAction(() => trashDocument(entry.id), `«${entry.title || "Documento"}» está en la papelera.`);
   }, [runDriveAction]);
 
-  const restoreFromDrive = useCallback((document: TextDocument) => {
-    void runDriveAction(
-      () => restoreDocument(document),
-      `«${document.metadata.title || "Documento"}» restaurado.`,
-    );
+  const restoreFromDrive = useCallback((entry: DriveEntry) => {
+    void runDriveAction(() => restoreDocument(entry.id), `«${entry.title || "Documento"}» restaurado.`);
   }, [runDriveAction]);
 
   /**
@@ -424,16 +436,16 @@ export function App() {
             folderId={route.folderId}
             onSectionChange={(section) => navigate({ view: "drive", section, folderId: "" })}
             onFolderChange={(folderId) => navigate({ view: "drive", section: "files", folderId })}
-            onOpen={(document) => void openDocument(document)}
+            onOpen={(entry) => void openFromDrive(entry)}
             onCreate={(folderId) => void createNew(folderId)}
             onRename={(document, title) => void renameFromDrive(document, title)}
             onDuplicate={(document) => void duplicateFromDrive(document)}
-            onDownload={downloadDocument}
+            onDownload={(entry, format) => void downloadFromDrive(entry, format)}
             onStar={starFromDrive}
             onMove={moveFromDrive}
             onTrash={trashFromDrive}
             onRestore={restoreFromDrive}
-            onDeleteForever={(document) => void deleteFromDrive(document)}
+            onDeleteForever={(entry) => void deleteFromDrive(entry)}
             onCreateFolder={createFolderFromDrive}
             onRenameFolder={renameFolderFromDrive}
             onDeleteFolder={deleteFolderFromDrive}

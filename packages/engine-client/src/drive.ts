@@ -31,8 +31,18 @@ export interface DriveFolder {
   updatedAt: string;
 }
 
+/**
+ * Ficha de un documento en el catálogo. Deliberadamente NO incluye el
+ * documento: la lista se pinta con estos metadatos, y el contenido solo se pide
+ * al abrirlo. Así una unidad con cien documentos no transfiere cien documentos.
+ */
 export interface DriveEntry {
-  document: TextDocument;
+  id: string;
+  title: string;
+  schemaVersion: number;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
   location: DriveLocation;
   cloudRevision: number | null;
   localRevision: number | null;
@@ -42,14 +52,10 @@ export interface DriveEntry {
   folderId: string;
   starred: boolean;
   trashed: boolean;
-  /**
-   * Extracto y conteo calculados una sola vez al construir el catálogo. Recorrer
-   * el documento entero es caro, y la lista lo pediría en cada render y en cada
-   * comparación al ordenar.
-   */
+  /** Extracto y conteo, calculados al guardar y guardados junto al registro. */
   preview: string;
   wordCount: number;
-  /** Texto en minúsculas para filtrar sin recorrer el documento otra vez. */
+  /** Texto en minúsculas para filtrar sin tocar el documento. */
   searchText: string;
 }
 
@@ -59,7 +65,7 @@ export interface DriveCatalog {
   cloudOnline: boolean;
 }
 
-interface CloudRecord {
+interface CloudSummary {
   id: string;
   title: string;
   kind: string;
@@ -68,11 +74,28 @@ interface CloudRecord {
   folderId: string;
   starred: boolean;
   trashedAt: string | null;
+  preview: string;
+  wordCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface CloudRecord extends CloudSummary {
   content: TextDocument;
 }
 
+/** Extracto, conteo y texto de búsqueda: un solo recorrido del documento. */
+function derive(document: TextDocument): { preview: string; wordCount: number; searchText: string } {
+  const text = documentPlainText(document).replace(/\s+/g, " ").trim();
+  return {
+    preview: text.length <= 180 ? text : `${text.slice(0, 180).trimEnd()}…`,
+    wordCount: text ? text.split(" ").length : 0,
+    searchText: `${document.metadata.title} ${text}`.toLowerCase(),
+  };
+}
+
+// El extracto y el conteo no se envían: los deriva el servidor del contenido,
+// que es quien debe garantizar que el catálogo corresponde con el documento.
 function toRecordPayload(document: TextDocument, folderId?: string): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     id: document.metadata.id,
@@ -129,17 +152,22 @@ export async function isCloudOnline(): Promise<boolean> {
   }
 }
 
-async function listCloudRecords(): Promise<CloudRecord[]> {
+/** Listado del catálogo: metadatos, sin contenido. */
+async function listCloudSummaries(): Promise<CloudSummary[]> {
   const response = await expectOk(await fetch(DOCS_URL));
-  const payload = (await response.json()) as { items: CloudRecord[] };
+  const payload = (await response.json()) as { items: CloudSummary[] };
   return payload.items;
 }
 
-/** Lista los documentos almacenados en la nube, omitiendo registros corruptos. */
+/**
+ * Descarga los documentos completos de la nube, uno a uno. Es caro por
+ * definición: para pintar el catálogo se usa `listDriveCatalog`, que no baja
+ * contenido.
+ */
 export async function listCloudDocuments(): Promise<TextDocument[]> {
-  return (await listCloudRecords())
-    .map(documentFromRecord)
-    .filter((document): document is TextDocument => document !== null);
+  const summaries = await listCloudSummaries();
+  const documents = await Promise.all(summaries.map((summary) => findDocumentById(summary.id)));
+  return documents.filter((document): document is TextDocument => document !== null);
 }
 
 async function getCloudRecord(id: string): Promise<CloudRecord | null> {
@@ -215,11 +243,11 @@ export async function deleteDocumentFromCloud(id: string): Promise<void> {
  * organizar un archivo local funciona sin pasos extra.
  */
 async function documentAction(
-  document: TextDocument,
+  id: string,
   action: "move" | "star" | "trash" | "restore",
   body: Record<string, unknown> = {},
 ): Promise<void> {
-  const url = `${DOCS_URL}/${encodeURIComponent(document.metadata.id)}/${action}`;
+  const url = `${DOCS_URL}/${encodeURIComponent(id)}/${action}`;
   const send = () =>
     fetch(url, {
       method: "POST",
@@ -229,30 +257,34 @@ async function documentAction(
 
   let response = await send();
   if (response.status === 404) {
-    await saveDocumentToCloud(document);
+    // Solo existía en este equipo: se sube y se reintenta, para que organizar un
+    // archivo local funcione sin pasos extra.
+    const local = (await listLocalDocuments()).find((document) => document.metadata.id === id);
+    if (!local) return;
+    await saveDocumentToCloud(local);
     response = await send();
   }
   await expectOk(response);
 }
 
 /** Mueve un documento a una carpeta (cadena vacía para la raíz). */
-export async function moveDocumentToFolder(document: TextDocument, folderId: string): Promise<void> {
-  await documentAction(document, "move", { folderId });
+export async function moveDocumentToFolder(id: string, folderId: string): Promise<void> {
+  await documentAction(id, "move", { folderId });
 }
 
 /** Marca o desmarca un documento como destacado. */
-export async function starDocument(document: TextDocument, starred: boolean): Promise<void> {
-  await documentAction(document, "star", { starred });
+export async function starDocument(id: string, starred: boolean): Promise<void> {
+  await documentAction(id, "star", { starred });
 }
 
 /** Envía un documento a la papelera (borrado reversible). */
-export async function trashDocument(document: TextDocument): Promise<void> {
-  await documentAction(document, "trash");
+export async function trashDocument(id: string): Promise<void> {
+  await documentAction(id, "trash");
 }
 
 /** Restaura un documento desde la papelera. */
-export async function restoreDocument(document: TextDocument): Promise<void> {
-  await documentAction(document, "restore");
+export async function restoreDocument(id: string): Promise<void> {
+  await documentAction(id, "restore");
 }
 
 // ── Carpetas ────────────────────────────────────────────────────────────────
@@ -344,49 +376,49 @@ export async function deleteDocumentEverywhere(id: string): Promise<void> {
  */
 export async function listDriveCatalog(): Promise<DriveCatalog> {
   const local = await listLocalDocuments();
-  let records: CloudRecord[] = [];
+  let summaries: CloudSummary[] = [];
   let folders: DriveFolder[] = [];
   let cloudOnline = true;
   try {
-    [records, folders] = await Promise.all([listCloudRecords(), listFolders()]);
+    [summaries, folders] = await Promise.all([listCloudSummaries(), listFolders()]);
   } catch {
     cloudOnline = false;
   }
 
   const byId = new Map<string, DriveEntry>();
 
-  /** Deriva los campos que la lista necesita, recorriendo el documento una vez. */
-  const derive = (document: TextDocument) => {
-    const text = documentPlainText(document).replace(/\s+/g, " ").trim();
-    const words = text ? text.split(" ").length : 0;
-    return {
-      preview: text.length <= 180 ? text : `${text.slice(0, 180).trimEnd()}…`,
-      wordCount: words,
-      searchText: `${document.metadata.title} ${text}`.toLowerCase(),
-    };
-  };
-
-  for (const record of records) {
-    const document = documentFromRecord(record);
-    if (!document) continue; // registro corrupto: no se inventa un documento vacío
-    byId.set(record.id, {
-      document,
+  for (const summary of summaries) {
+    byId.set(summary.id, {
+      id: summary.id,
+      title: summary.title,
+      schemaVersion: summary.schemaVersion,
+      revision: summary.revision,
+      createdAt: Date.parse(summary.createdAt),
+      updatedAt: Date.parse(summary.updatedAt),
       location: "cloud",
-      cloudRevision: record.revision,
+      cloudRevision: summary.revision,
       localRevision: null,
       outOfSync: false,
-      folderId: record.folderId ?? "",
-      starred: Boolean(record.starred),
-      trashed: Boolean(record.trashedAt),
-      ...derive(document),
+      folderId: summary.folderId ?? "",
+      starred: Boolean(summary.starred),
+      trashed: Boolean(summary.trashedAt),
+      preview: summary.preview ?? "",
+      wordCount: summary.wordCount ?? 0,
+      searchText: `${summary.title} ${summary.preview ?? ""}`.toLowerCase(),
     });
   }
 
   for (const document of local) {
     const existing = byId.get(document.metadata.id);
     if (!existing) {
+      // Solo en este equipo: sus derivados se calculan aquí, sin red de por medio.
       byId.set(document.metadata.id, {
-        document,
+        id: document.metadata.id,
+        title: document.metadata.title,
+        schemaVersion: document.metadata.schemaVersion,
+        revision: document.metadata.revision,
+        createdAt: document.metadata.createdAt,
+        updatedAt: document.metadata.updatedAt,
         location: "local",
         cloudRevision: null,
         localRevision: document.metadata.revision,
@@ -400,37 +432,43 @@ export async function listDriveCatalog(): Promise<DriveCatalog> {
     }
     const cloudRevision = existing.cloudRevision ?? 0;
     const localRevision = document.metadata.revision;
-    // La copia más reciente (mayor updatedAt) representa al documento.
-    const newest =
-      document.metadata.updatedAt > existing.document.metadata.updatedAt ? document : existing.document;
+    const localIsNewer = document.metadata.updatedAt > existing.updatedAt;
     byId.set(document.metadata.id, {
       ...existing,
-      document: newest,
       location: "both",
       localRevision,
       outOfSync: cloudRevision !== localRevision,
-      // Si gana la copia local, sus derivados hay que recalcularlos.
-      ...(newest === existing.document ? {} : derive(newest)),
+      // Si la copia local es más reciente, es la que se muestra.
+      ...(localIsNewer
+        ? {
+            title: document.metadata.title,
+            revision: document.metadata.revision,
+            updatedAt: document.metadata.updatedAt,
+            ...derive(document),
+          }
+        : {}),
     });
   }
 
-  const entries = [...byId.values()].sort(
-    (left, right) => right.document.metadata.updatedAt - left.document.metadata.updatedAt,
-  );
+  const entries = [...byId.values()].sort((left, right) => right.updatedAt - left.updatedAt);
   return { entries, folders, cloudOnline };
 }
 
 /** Sube a la nube todos los documentos locales que aún no están sincronizados. */
 export async function syncLocalToCloud(): Promise<{ synced: number; failed: number }> {
-  const catalog = await listDriveCatalog();
+  const [catalog, local] = await Promise.all([listDriveCatalog(), listLocalDocuments()]);
   if (!catalog.cloudOnline) return { synced: 0, failed: 0 };
+  const byId = new Map(local.map((document) => [document.metadata.id, document]));
   let synced = 0;
   let failed = 0;
   for (const entry of catalog.entries) {
     if (entry.location === "cloud") continue;
     if (entry.location === "both" && !entry.outOfSync) continue;
+    // Se sube la copia local, que es la que la nube no tiene al día.
+    const document = byId.get(entry.id);
+    if (!document) continue;
     try {
-      await saveDocumentToCloud(entry.document);
+      await saveDocumentToCloud(document);
       synced += 1;
     } catch {
       failed += 1;

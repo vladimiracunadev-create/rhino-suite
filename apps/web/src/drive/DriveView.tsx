@@ -15,16 +15,16 @@ type SortMode = "recent" | "name" | "words";
 interface DriveViewProps {
   catalog: DriveCatalog | null;
   loading: boolean;
-  onOpen: (document: TextDocument) => void;
+  onOpen: (entry: DriveEntry) => void;
   onCreate: (folderId: string) => void;
-  onRename: (document: TextDocument, title: string) => void;
-  onDuplicate: (document: TextDocument) => void;
-  onDownload: (document: TextDocument, format: DownloadFormat) => void;
-  onStar: (document: TextDocument, starred: boolean) => void;
-  onMove: (document: TextDocument, folderId: string) => void;
-  onTrash: (document: TextDocument) => void;
-  onRestore: (document: TextDocument) => void;
-  onDeleteForever: (document: TextDocument) => void;
+  onRename: (entry: DriveEntry, title: string) => void;
+  onDuplicate: (entry: DriveEntry) => void;
+  onDownload: (entry: DriveEntry, format: DownloadFormat) => void;
+  onStar: (entry: DriveEntry, starred: boolean) => void;
+  onMove: (entry: DriveEntry, folderId: string) => void;
+  onTrash: (entry: DriveEntry) => void;
+  onRestore: (entry: DriveEntry) => void;
+  onDeleteForever: (entry: DriveEntry) => void;
   onCreateFolder: (name: string, parentId: string) => void;
   onRenameFolder: (folder: DriveFolder, name: string) => void;
   onDeleteFolder: (folder: DriveFolder) => void;
@@ -79,7 +79,7 @@ export function DriveView(props: DriveViewProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [movingDoc, setMovingDoc] = useState<TextDocument | null>(null);
+  const [movingDoc, setMovingDoc] = useState<DriveEntry | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderDraft, setFolderDraft] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -152,29 +152,29 @@ export function DriveView(props: DriveViewProps) {
 
     const sorted = [...list];
     if (sort === "name") {
-      sorted.sort((a, b) => (a.document.metadata.title || "").localeCompare(b.document.metadata.title || "", lang));
+      sorted.sort((a, b) => (a.title || "").localeCompare(b.title || "", lang));
     } else if (sort === "words") {
       sorted.sort((a, b) => b.wordCount - a.wordCount);
     } else {
-      sorted.sort((a, b) => b.document.metadata.updatedAt - a.document.metadata.updatedAt);
+      sorted.sort((a, b) => b.updatedAt - a.updatedAt);
     }
     return sorted;
   }, [entries, section, folderId, query, sort, lang]);
 
-  const startRename = (document: TextDocument) => {
+  const startRename = (entry: DriveEntry) => {
     setMenuFor(null);
-    setRenamingId(document.metadata.id);
-    setDraftTitle(document.metadata.title || "");
+    setRenamingId(entry.id);
+    setDraftTitle(entry.title || "");
   };
 
-  const commitRename = (document: TextDocument) => {
+  const commitRename = (entry: DriveEntry) => {
     const title = draftTitle.trim();
-    if (title && title !== document.metadata.title) props.onRename(document, title);
+    if (title && title !== entry.title) props.onRename(entry, title);
     setRenamingId(null);
   };
 
-  const handleRenameKey = (event: KeyboardEvent<HTMLInputElement>, document: TextDocument) => {
-    if (event.key === "Enter") commitRename(document);
+  const handleRenameKey = (event: KeyboardEvent<HTMLInputElement>, entry: DriveEntry) => {
+    if (event.key === "Enter") commitRename(entry);
     if (event.key === "Escape") setRenamingId(null);
   };
 
@@ -185,15 +185,15 @@ export function DriveView(props: DriveViewProps) {
     setCreatingFolder(false);
   };
 
-  const confirmDeleteForever = (document: TextDocument) => {
-    const name = document.metadata.title || t("untitled");
-    if (window.confirm(t("confirmDeleteForever", { name }))) props.onDeleteForever(document);
+  const confirmDeleteForever = (entry: DriveEntry) => {
+    const name = entry.title || t("untitled");
+    if (window.confirm(t("confirmDeleteForever", { name }))) props.onDeleteForever(entry);
   };
 
   const emptyTrash = () => {
     const trashed = entries.filter((entry) => entry.trashed);
     if (window.confirm(t("confirmEmptyTrash", { n: trashed.length }))) {
-      for (const entry of trashed) props.onDeleteForever(entry.document);
+      for (const entry of trashed) props.onDeleteForever(entry);
     }
   };
 
@@ -425,8 +425,8 @@ export function DriveView(props: DriveViewProps) {
                         if (!draggingDocId) return;
                         event.preventDefault();
                         event.stopPropagation();
-                        const dragged = entries.find((entry) => entry.document.metadata.id === draggingDocId);
-                        if (dragged && dragged.folderId !== folder.id) props.onMove(dragged.document, folder.id);
+                        const dragged = entries.find((item) => item.id === draggingDocId);
+                        if (dragged && dragged.folderId !== folder.id) props.onMove(dragged, folder.id);
                         setDraggingDocId(null);
                         setDropFolderId(null);
                       }}
@@ -471,32 +471,31 @@ export function DriveView(props: DriveViewProps) {
               {visibleFolders.length > 0 ? <h2 className="block-title">{t("statDocuments")}</h2> : null}
               <div className={view === "grid" ? "drive-grid" : "drive-list"}>
                 {visibleDocs.map((entry) => {
-                  const meta = entry.document.metadata;
                   const badge = locationBadge(entry.location, t);
                   const words = entry.wordCount;
-                  const isRenaming = renamingId === meta.id;
+                  const isRenaming = renamingId === entry.id;
                   const inTrash = entry.trashed;
                   return (
                     <article
-                      key={meta.id}
-                      className={`file-card ${draggingDocId === meta.id ? "dragging" : ""}`}
+                      key={entry.id}
+                      className={`file-card ${draggingDocId === entry.id ? "dragging" : ""}`}
                       draggable={!inTrash}
                       onDragStart={(event) => {
-                        setDraggingDocId(meta.id);
+                        setDraggingDocId(entry.id);
                         event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", meta.id);
+                        event.dataTransfer.setData("text/plain", entry.id);
                       }}
                       onDragEnd={() => { setDraggingDocId(null); setDropFolderId(null); }}
                       onContextMenu={(event) => {
                         event.preventDefault();
-                        setMenuFor(meta.id);
+                        setMenuFor(entry.id);
                         setMenuPoint({ x: event.clientX, y: event.clientY });
                       }}
-                      onDoubleClick={() => !inTrash && onOpen(entry.document)}
+                      onDoubleClick={() => !inTrash && onOpen(entry)}
                     >
                       <div
                         className="file-thumb"
-                        onClick={() => !inTrash && onOpen(entry.document)}
+                        onClick={() => !inTrash && onOpen(entry)}
                         role="presentation"
                       >
                         <div className="file-thumb-page">
@@ -514,14 +513,14 @@ export function DriveView(props: DriveViewProps) {
                             autoFocus
                             value={draftTitle}
                             onChange={(event: ChangeEvent<HTMLInputElement>) => setDraftTitle(event.target.value)}
-                            onBlur={() => commitRename(entry.document)}
-                            onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => handleRenameKey(event, entry.document)}
+                            onBlur={() => commitRename(entry)}
+                            onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => handleRenameKey(event, entry)}
                           />
                         ) : (
-                          <h3 className="file-title" title={meta.title}>{meta.title || t("untitled")}</h3>
+                          <h3 className="file-title" title={entry.title}>{entry.title || t("untitled")}</h3>
                         )}
                         <div className="file-meta">
-                          {props.openDocumentId === meta.id ? <span className="loc-badge open">● {t("openNow")}</span> : null}
+                          {props.openDocumentId === entry.id ? <span className="loc-badge open">● {t("openNow")}</span> : null}
                           <span className={`loc-badge ${badge.tone}`}>{badge.icon} {badge.text}</span>
                           {entry.outOfSync ? <span className="loc-badge warn">⚠ {t("localChanges")}</span> : null}
                           {section !== "files" && entry.folderId && folderName(entry.folderId) ? (
@@ -529,45 +528,45 @@ export function DriveView(props: DriveViewProps) {
                           ) : null}
                         </div>
                         <div className="file-submeta">
-                          <span>{relativeTime(meta.updatedAt, t, lang)}</span>
+                          <span>{relativeTime(entry.updatedAt, t, lang)}</span>
                           <span>·</span>
                           <span>{t("words", { n: words })}</span>
                           <span>·</span>
-                          <span>r{meta.revision}</span>
+                          <span>r{entry.revision}</span>
                         </div>
                       </div>
 
                       <div className="file-actions">
                         {inTrash ? (
                           <>
-                            <button type="button" className="file-open" onClick={() => props.onRestore(entry.document)}>
+                            <button type="button" className="file-open" onClick={() => props.onRestore(entry)}>
                               ↺ {t("restore")}
                             </button>
                             <div className="file-icons">
-                              <button type="button" className="danger" title={t("deleteForever")} onClick={() => confirmDeleteForever(entry.document)}>
+                              <button type="button" className="danger" title={t("deleteForever")} onClick={() => confirmDeleteForever(entry)}>
                                 🗑
                               </button>
                             </div>
                           </>
                         ) : (
                           <>
-                            <button type="button" className="file-open" onClick={() => onOpen(entry.document)}>{t("open")}</button>
+                            <button type="button" className="file-open" onClick={() => onOpen(entry)}>{t("open")}</button>
                             <div className="file-icons">
                               <button
                                 type="button"
                                 className={entry.starred ? "starred" : ""}
                                 title={entry.starred ? t("unstar") : t("star")}
                                 aria-pressed={entry.starred}
-                                onClick={() => props.onStar(entry.document, !entry.starred)}
+                                onClick={() => props.onStar(entry, !entry.starred)}
                               >★</button>
-                              <div className="menu-anchor" ref={menuFor === meta.id ? menuRef : undefined}>
+                              <div className="menu-anchor" ref={menuFor === entry.id ? menuRef : undefined}>
                                 <button
                                   type="button"
                                   title={t("moreActions")}
-                                  aria-expanded={menuFor === meta.id}
-                                  onClick={() => { setMenuPoint(null); setMenuFor(menuFor === meta.id ? null : meta.id); }}
+                                  aria-expanded={menuFor === entry.id}
+                                  onClick={() => { setMenuPoint(null); setMenuFor(menuFor === entry.id ? null : entry.id); }}
                                 >⋯</button>
-                                {menuFor === meta.id ? (
+                                {menuFor === entry.id ? (
                                   <div
                                     className="card-menu"
                                     role="menu"
@@ -575,25 +574,25 @@ export function DriveView(props: DriveViewProps) {
                                        con el botón ⋯ se ancla a la tarjeta. */
                                     style={menuPoint ? { position: "fixed", left: menuPoint.x, top: menuPoint.y, right: "auto", bottom: "auto" } : undefined}
                                   >
-                                    <button type="button" onClick={() => startRename(entry.document)}>✎ {t("rename")}</button>
-                                    <button type="button" onClick={() => { setMenuFor(null); setMovingDoc(entry.document); }}>
+                                    <button type="button" onClick={() => startRename(entry)}>✎ {t("rename")}</button>
+                                    <button type="button" onClick={() => { setMenuFor(null); setMovingDoc(entry); }}>
                                       📁 {t("moveTo")}
                                     </button>
-                                    <button type="button" onClick={() => { setMenuFor(null); props.onDuplicate(entry.document); }}>
+                                    <button type="button" onClick={() => { setMenuFor(null); props.onDuplicate(entry); }}>
                                       ⧉ {t("duplicate")}
                                     </button>
                                     <hr />
-                                    <button type="button" onClick={() => { setMenuFor(null); props.onDownload(entry.document, "docx"); }}>
+                                    <button type="button" onClick={() => { setMenuFor(null); props.onDownload(entry, "docx"); }}>
                                       ↓ {t("downloadDocx")}
                                     </button>
-                                    <button type="button" onClick={() => { setMenuFor(null); props.onDownload(entry.document, "odt"); }}>
+                                    <button type="button" onClick={() => { setMenuFor(null); props.onDownload(entry, "odt"); }}>
                                       ↓ {t("downloadOdt")}
                                     </button>
-                                    <button type="button" onClick={() => { setMenuFor(null); props.onDownload(entry.document, "json"); }}>
+                                    <button type="button" onClick={() => { setMenuFor(null); props.onDownload(entry, "json"); }}>
                                       ↓ {t("downloadJson")}
                                     </button>
                                     <hr />
-                                    <button type="button" className="danger" onClick={() => { setMenuFor(null); props.onTrash(entry.document); }}>
+                                    <button type="button" className="danger" onClick={() => { setMenuFor(null); props.onTrash(entry); }}>
                                       🗑 {t("sendToTrash")}
                                     </button>
                                   </div>
