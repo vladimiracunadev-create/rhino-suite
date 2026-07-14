@@ -1,194 +1,303 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   createOfficeEngine,
-  listDocuments,
+  deleteDocumentEverywhere,
+  listDriveCatalog,
+  normalizeDocument,
   restoreOfficeEngine,
-  saveDocument,
+  saveDocumentEverywhere,
+  syncLocalToCloud,
+  type DriveCatalog,
   type OfficeEngineClient,
   type TextDocument,
 } from "@web-office/engine-client";
 import { DocumentEditor } from "./editor/DocumentEditor";
+import { DriveView } from "./drive/DriveView";
 
-const phases = [
-  ["01", "Núcleo común", "Completada"],
-  ["02", "Editor de documentos", "Fase 2.4"],
-  ["03", "Hoja de cálculo", "Planificada"],
-  ["04", "Presentaciones", "Planificada"],
-  ["05", "PDF", "Planificada"],
-  ["06", "Colaboración", "Planificada"],
-  ["07", "Aplicación Windows", "Planificada"],
-  ["08", "Compatibilidad Office", "Planificada"],
-] as const;
+type View = "drive" | "editor";
+type SaveState = "saved" | "saving" | "dirty" | "local-only";
+
+const newId = () => `doc-${crypto.randomUUID()}`;
+
+function downloadDocument(document: TextDocument) {
+  const blob = new Blob([JSON.stringify(normalizeDocument(document), null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = window.document.createElement("a");
+  const safeTitle = (document.metadata.title || "documento").replace(/[^\p{L}\p{N}\-_ ]/gu, "").trim() || "documento";
+  anchor.href = url;
+  anchor.download = `${safeTitle}.rhino.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export function App() {
   const engineRef = useRef<OfficeEngineClient | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
+  const [view, setView] = useState<View>("drive");
   const [documentModel, setDocumentModel] = useState<TextDocument | null>(null);
-  const [savedDocuments, setSavedDocuments] = useState<TextDocument[]>([]);
-  const [message, setMessage] = useState("Inicializando el motor documental...");
-  const [saveState, setSaveState] = useState<"saved" | "saving" | "dirty">("saved");
-  const [apiStatus, setApiStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [catalog, setCatalog] = useState<DriveCatalog | null>(null);
+  const [driveLoading, setDriveLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [engineKind, setEngineKind] = useState<OfficeEngineClient["kind"]>("typescript-fallback");
 
-  const refreshDocuments = useCallback(async () => {
+  const refreshCatalog = useCallback(async () => {
+    setDriveLoading(true);
     try {
-      setSavedDocuments(await listDocuments());
+      setCatalog(await listDriveCatalog());
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo leer IndexedDB.");
+      setMessage(error instanceof Error ? error.message : "No se pudo leer la unidad de archivos.");
+    } finally {
+      setDriveLoading(false);
     }
   }, []);
 
-  const activateEngine = useCallback((engine: OfficeEngineClient) => {
-    engineRef.current = engine;
-    setDocumentModel(engine.getDocument());
-    setSaveState("saved");
-    setMessage(engine.kind === "rust-wasm"
-      ? "Motor documental Rust/WebAssembly activo."
-      : "Motor TypeScript compatible activo. Compile WASM para ejecutar el núcleo Rust.");
-  }, []);
-
   useEffect(() => {
-    let active = true;
-    void createOfficeEngine("Documento de Fase 2.4").then((engine) => {
-      if (active) activateEngine(engine);
-    });
-    void refreshDocuments();
-    const apiUrl = import.meta.env.VITE_API_URL ?? "";
-    void fetch(`${apiUrl}/health`)
-      .then((response) => setApiStatus(response.ok ? "online" : "offline"))
-      .catch(() => setApiStatus("offline"));
+    void refreshCatalog();
     return () => {
-      active = false;
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };
-  }, [activateEngine, refreshDocuments]);
+  }, [refreshCatalog]);
 
-  const persist = useCallback(async (model = documentModel) => {
+  const activateEngine = useCallback((engine: OfficeEngineClient) => {
+    engineRef.current = engine;
+    setEngineKind(engine.kind);
+    setDocumentModel(engine.getDocument());
+    setSaveState("saved");
+    setView("editor");
+    setMessage(
+      engine.kind === "rust-wasm"
+        ? "Motor documental Rust/WebAssembly activo."
+        : "Motor TypeScript compatible activo.",
+    );
+  }, []);
+
+  const persist = useCallback(async (model: TextDocument | null = documentModel) => {
     if (!model) return;
     setSaveState("saving");
     try {
-      await saveDocument(model);
-      await refreshDocuments();
-      setSaveState("saved");
-      setMessage(`Guardado local · revisión ${model.metadata.revision}.`);
+      const result = await saveDocumentEverywhere(model);
+      setSaveState(result.syncedToCloud ? "saved" : "local-only");
+      setMessage(
+        result.syncedToCloud
+          ? `Guardado en la nube · revisión ${result.document.metadata.revision}.`
+          : `Guardado en este equipo (nube sin conexión). ${result.cloudError ?? ""}`.trim(),
+      );
+      void refreshCatalog();
     } catch (error) {
       setSaveState("dirty");
       setMessage(error instanceof Error ? error.message : "No se pudo guardar el documento.");
     }
-  }, [documentModel, refreshDocuments]);
+  }, [documentModel, refreshCatalog]);
 
   const handleDocumentChange = useCallback((next: TextDocument) => {
     setDocumentModel(next);
     setSaveState("dirty");
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(() => {
-      void saveDocument(next).then(() => {
-        setSaveState("saved");
-        void refreshDocuments();
-      }).catch((error: unknown) => {
-        setSaveState("dirty");
-        setMessage(error instanceof Error ? error.message : "El guardado automático falló.");
-      });
-    }, 1200);
-  }, [refreshDocuments]);
+    autosaveTimerRef.current = window.setTimeout(() => { void persist(next); }, 1400);
+  }, [persist]);
 
-  const createNew = async () => {
-    if (documentModel && saveState === "dirty") await persist(documentModel);
+  const createNew = useCallback(async () => {
+    setMessage("Creando documento…");
     activateEngine(await createOfficeEngine("Documento sin título"));
-  };
+  }, [activateEngine]);
 
-  const openSaved = async (saved: TextDocument) => {
+  const openDocument = useCallback(async (saved: TextDocument) => {
     try {
       activateEngine(await restoreOfficeEngine(JSON.stringify(saved)));
-      setMessage("Documento restaurado desde IndexedDB.");
+      setMessage(`«${saved.metadata.title || "Sin título"}» abierto.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo abrir el documento.");
     }
-  };
+  }, [activateEngine]);
 
-  const openImported = async (imported: TextDocument) => {
+  const openImported = useCallback(async (imported: TextDocument) => {
     try {
       activateEngine(await restoreOfficeEngine(JSON.stringify(imported)));
       setMessage("Documento importado y normalizado al formato interno schema v5.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo abrir el documento importado.");
     }
-  };
+  }, [activateEngine]);
 
-  const rename = (title: string) => {
+  const rename = useCallback((title: string) => {
     const engine = engineRef.current;
     if (!engine) return;
     handleDocumentChange(engine.apply({ type: "setTitle", title }));
-  };
+  }, [handleDocumentChange]);
+
+  const goToDrive = useCallback(async () => {
+    if (documentModel && (saveState === "dirty" || saveState === "saving")) {
+      if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
+      await persist(documentModel);
+    }
+    setView("drive");
+    void refreshCatalog();
+  }, [documentModel, saveState, persist, refreshCatalog]);
+
+  // ── Acciones de la unidad de archivos ──────────────────────────────────────
+  const renameFromDrive = useCallback(async (document: TextDocument, title: string) => {
+    const renamed: TextDocument = {
+      ...document,
+      metadata: { ...document.metadata, title, revision: document.metadata.revision + 1, updatedAt: Date.now() },
+    };
+    await saveDocumentEverywhere(renamed);
+    void refreshCatalog();
+  }, [refreshCatalog]);
+
+  const duplicateFromDrive = useCallback(async (document: TextDocument) => {
+    const now = Date.now();
+    const copy: TextDocument = normalizeDocument({
+      ...document,
+      metadata: {
+        ...document.metadata,
+        id: newId(),
+        title: `${document.metadata.title || "Documento"} (copia)`,
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    await saveDocumentEverywhere(copy);
+    setMessage(`Copia creada: «${copy.metadata.title}».`);
+    void refreshCatalog();
+  }, [refreshCatalog]);
+
+  const deleteFromDrive = useCallback(async (document: TextDocument) => {
+    await deleteDocumentEverywhere(document.metadata.id);
+    setMessage(`«${document.metadata.title || "Documento"}» eliminado.`);
+    void refreshCatalog();
+  }, [refreshCatalog]);
+
+  const syncAll = useCallback(async () => {
+    setMessage("Sincronizando con la nube…");
+    const result = await syncLocalToCloud();
+    setMessage(`Sincronización completa · ${result.synced} subidos${result.failed ? `, ${result.failed} con error` : ""}.`);
+    void refreshCatalog();
+  }, [refreshCatalog]);
+
+  const cloudOnline = catalog?.cloudOnline ?? false;
 
   return (
     <div className="app-shell">
-      <aside className="project-sidebar">
-        <div className="brand">
-          <span className="brand-mark">RS</span>
-          <div><strong>Rhino Suite</strong><small>Suite ofimática</small></div>
+      <aside className="rail">
+        <div className="rail-brand">
+          <span className="rail-mark">R</span>
+          <div>
+            <strong>Rhino Suite</strong>
+            <small>Suite ofimática</small>
+          </div>
         </div>
-        <button className="new-document" type="button" onClick={() => void createNew()}>＋ Nuevo documento</button>
-        <nav aria-label="Fases del proyecto">
-          <p className="nav-label">DESARROLLO POR FASES</p>
-          {phases.map(([number, name, status], index) => (
-            <button className={`phase ${index === 1 ? "active" : index === 0 ? "complete" : ""}`} key={number} type="button">
-              <span>{number}</span><div><strong>{name}</strong><small>{status}</small></div>
-            </button>
-          ))}
+
+        <button type="button" className="rail-new" onClick={() => void createNew()}>
+          ＋ Nuevo documento
+        </button>
+
+        <nav className="rail-nav" aria-label="Navegación principal">
+          <button
+            type="button"
+            className={`rail-link ${view === "drive" ? "active" : ""}`}
+            onClick={() => void goToDrive()}
+          >
+            <span className="rail-ico">🗂</span> Mis archivos
+          </button>
+          <button
+            type="button"
+            className={`rail-link ${view === "editor" ? "active" : ""}`}
+            onClick={() => setView("editor")}
+            disabled={!documentModel}
+          >
+            <span className="rail-ico">📝</span> Editor
+          </button>
         </nav>
-        <section className="recent-panel">
-          <p className="nav-label">RECIENTES</p>
-          {savedDocuments.length === 0 ? <small>No hay documentos guardados.</small> : savedDocuments.slice(0, 5).map((saved) => (
-            <button key={saved.metadata.id} type="button" onClick={() => void openSaved(saved)}>
-              <span className="file-icon">W</span>
-              <span><strong>{saved.metadata.title || "Sin título"}</strong><small>r{saved.metadata.revision}</small></span>
-            </button>
+
+        <div className="rail-modules">
+          <p className="rail-label">Módulos</p>
+          {[
+            ["📄", "Documentos", "Activo"],
+            ["📊", "Hoja de cálculo", "Próximo"],
+            ["📽", "Presentaciones", "Próximo"],
+            ["📕", "PDF", "Próximo"],
+          ].map(([icon, name, status]) => (
+            <div className={`rail-module ${status === "Activo" ? "on" : ""}`} key={name}>
+              <span className="rail-ico">{icon}</span>
+              <span className="rail-module-name">{name}</span>
+              <span className="rail-module-status">{status}</span>
+            </div>
           ))}
-        </section>
-        <div className="sidebar-footer">
-          <span className={`status-dot ${apiStatus}`} />
-          API Go: {apiStatus === "checking" ? "revisando" : apiStatus === "online" ? "en línea" : "sin conexión"}
+        </div>
+
+        <div className="rail-foot">
+          <span className={`status-dot ${cloudOnline ? "online" : "offline"}`} />
+          {cloudOnline ? "Nube conectada" : "Nube sin conexión"}
         </div>
       </aside>
 
-      <main className="office-main">
-        <header className="document-topbar">
-          <div className="document-identity">
-            <span className="word-badge">W</span>
-            <div>
-              <input
-                aria-label="Título del documento"
-                value={documentModel?.metadata.title ?? ""}
-                onChange={(event: ChangeEvent<HTMLInputElement>) => rename(event.target.value)}
-                placeholder="Documento sin título"
-              />
-              <small>Fase 2.4 · formato interno v{documentModel?.metadata.schemaVersion ?? 5}</small>
-            </div>
-          </div>
-          <div className="topbar-meta">
-            <span className={`save-state ${saveState}`}>{saveState === "saving" ? "Guardando…" : saveState === "dirty" ? "Cambios pendientes" : "Guardado local"}</span>
-            <span>{engineRef.current?.kind === "rust-wasm" ? "Rust/WASM" : "TypeScript fallback"}</span>
-            <span>r{documentModel?.metadata.revision ?? 0}</span>
-          </div>
-        </header>
-
-        <section className="phase-banner">
-          <div><span>FASE 2</span><strong>Editor documental estructurado</strong></div>
-          <p>Revisión, comentarios, control de cambios, hipervínculos, marcadores, búsqueda estructurada, impresión y compatibilidad inicial DOCX/ODT.</p>
-        </section>
-
-        {documentModel && engineRef.current ? (
-          <DocumentEditor
-            document={documentModel}
-            engine={engineRef.current}
-            onDocumentChange={handleDocumentChange}
-            onMessage={setMessage}
-            onOpenDocument={(imported) => void openImported(imported)}
-            onSave={() => void persist()}
+      <main className="stage">
+        {view === "drive" ? (
+          <DriveView
+            catalog={catalog}
+            loading={driveLoading}
+            onOpen={(document) => void openDocument(document)}
+            onCreate={() => void createNew()}
+            onRename={(document, title) => void renameFromDrive(document, title)}
+            onDuplicate={(document) => void duplicateFromDrive(document)}
+            onDownload={downloadDocument}
+            onDelete={(document) => void deleteFromDrive(document)}
+            onRefresh={() => void refreshCatalog()}
+            onSyncAll={() => void syncAll()}
           />
-        ) : <div className="loading-card">Preparando el editor…</div>}
+        ) : documentModel && engineRef.current ? (
+          <div className="editor-shell">
+            <header className="editor-bar">
+              <div className="editor-bar-left">
+                <button type="button" className="back-btn" onClick={() => void goToDrive()}>
+                  ← Mis archivos
+                </button>
+                <span className="editor-crumb">
+                  <span className="word-badge">W</span>
+                  <input
+                    aria-label="Título del documento"
+                    value={documentModel.metadata.title ?? ""}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => rename(event.target.value)}
+                    placeholder="Documento sin título"
+                  />
+                </span>
+              </div>
+              <div className="editor-bar-right">
+                <span className={`chip save-${saveState}`}>
+                  {saveState === "saving"
+                    ? "Guardando…"
+                    : saveState === "dirty"
+                      ? "Cambios pendientes"
+                      : saveState === "local-only"
+                        ? "Solo en este equipo"
+                        : "Guardado en la nube"}
+                </span>
+                <span className="chip subtle">{engineKind === "rust-wasm" ? "Rust/WASM" : "TypeScript"}</span>
+                <span className="chip subtle">r{documentModel.metadata.revision}</span>
+              </div>
+            </header>
 
-        <div className="application-message" role="status">{message}</div>
+            <DocumentEditor
+              document={documentModel}
+              engine={engineRef.current}
+              onDocumentChange={handleDocumentChange}
+              onMessage={setMessage}
+              onOpenDocument={(imported) => void openImported(imported)}
+              onSave={() => void persist()}
+            />
+
+            {message ? <div className="stage-message" role="status">{message}</div> : null}
+          </div>
+        ) : (
+          <div className="drive-empty">
+            <div className="spinner" />
+            <p>Preparando el editor…</p>
+          </div>
+        )}
       </main>
     </div>
   );
