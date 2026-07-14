@@ -493,6 +493,29 @@ body { background: var(--rs-bg); color: var(--rs-text); }
 :root[data-theme="dark"] .file-icons button.starred { color: #f0c24b; }
 :root[data-theme="dark"] .modal-backdrop { background: rgba(0, 0, 0, .62); }
 
+/* Barra del editor y estado en modo oscuro. La hoja del documento sigue siendo
+   blanca a propósito: es papel. */
+:root[data-theme="dark"] .ribbon { background: var(--rs-surface); color: var(--rs-text); border-bottom-color: var(--rs-border); }
+:root[data-theme="dark"] .ribbon-group { border-right-color: var(--rs-border); }
+:root[data-theme="dark"] .ribbon button { color: var(--rs-muted); }
+:root[data-theme="dark"] .ribbon button:hover,
+:root[data-theme="dark"] .ribbon button.active,
+:root[data-theme="dark"] .ribbon button[aria-pressed="true"] {
+  border-color: rgba(139, 135, 255, .45);
+  background: var(--rs-accent-soft);
+  color: var(--rs-accent);
+}
+:root[data-theme="dark"] .ribbon select {
+  background: var(--rs-surface-2);
+  border-color: var(--rs-border-strong);
+  color: var(--rs-text);
+}
+:root[data-theme="dark"] .ribbon .save-button { border-color: transparent; background: var(--rs-accent); color: #fff; }
+:root[data-theme="dark"] .ribbon .save-button:hover { background: var(--rs-accent-2); color: #fff; }
+:root[data-theme="dark"] .color-control:hover { background: var(--rs-surface-2); }
+:root[data-theme="dark"] .object-group { background: rgba(139, 135, 255, .1); }
+:root[data-theme="dark"] .editor-statusbar { background: var(--rs-surface); border-top-color: var(--rs-border); color: var(--rs-muted); }
+
 /* ============================================================================
    Configuración flotante (esquina inferior derecha)
    ========================================================================== */

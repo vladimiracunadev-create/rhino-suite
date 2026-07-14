@@ -15,6 +15,34 @@ import {
   type ReactNode,
 } from "react";
 import {
+  AlignCenterIcon,
+  AlignJustifyIcon,
+  AlignLeftIcon,
+  AlignRightIcon,
+  BookmarkIcon,
+  BulletListIcon,
+  ColumnBreakIcon,
+  CommentIcon,
+  DownloadIcon,
+  ImageIcon,
+  InspectorIcon,
+  LayoutIcon,
+  LinkIcon,
+  NumberListIcon,
+  OpenIcon,
+  PageBreakIcon,
+  PrintIcon,
+  RedoIcon,
+  ReviewIcon,
+  SaveIcon,
+  SectionBreakIcon,
+  TableIcon,
+  TrackChangesIcon,
+  UndoIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from "./EditorIcons";
+import {
   WEB_OFFICE_CLIPBOARD_MIME,
   blockText,
   caretAfterFragment,
@@ -814,9 +842,9 @@ export function DocumentEditor({
       <input ref={officeInputRef} type="file" accept=".docx,.odt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text" hidden onChange={(event: ChangeEvent<HTMLInputElement>) => void handleOfficeFile(event)} />
       <div className="ribbon" aria-label="Herramientas del documento">
         <div className="ribbon-group history-group">
-          <button type="button" title="Deshacer" disabled={!engine.canUndo()} onClick={() => onDocumentChange(engine.undo())}>↶</button>
-          <button type="button" title="Rehacer" disabled={!engine.canRedo()} onClick={() => onDocumentChange(engine.redo())}>↷</button>
-          <button type="button" className="save-button" onClick={onSave}>Guardar</button>
+          <button type="button" className="icon-button" title="Deshacer" disabled={!engine.canUndo()} onClick={() => onDocumentChange(engine.undo())}><UndoIcon /></button>
+          <button type="button" className="icon-button" title="Rehacer" disabled={!engine.canRedo()} onClick={() => onDocumentChange(engine.redo())}><RedoIcon /></button>
+          <button type="button" className="save-button" onClick={onSave}><SaveIcon /> Guardar</button>
         </div>
         <div className="ribbon-group">
           <select aria-label="Tipo de bloque" value={activeTextBlock?.kind.type === "heading" ? `h${activeTextBlock.kind.level}` : "paragraph"} onChange={(event: ChangeEvent<HTMLSelectElement>) => applyBlockKind(event.target.value)}>
@@ -838,27 +866,27 @@ export function DocumentEditor({
         </div>
         <div className="ribbon-group compact">
           {(["left", "center", "right", "justify"] as TextAlignment[]).map((alignment) => (
-            <ToolbarToggle key={alignment} label={`Alinear ${alignment}`} active={activeTextBlock?.paragraphStyle.alignment === alignment} onClick={() => applyParagraphStyle({ alignment })}>{alignmentIcon(alignment)}</ToolbarToggle>
+            <ToolbarToggle key={alignment} label={ALIGNMENT_LABELS[alignment]} active={activeTextBlock?.paragraphStyle.alignment === alignment} onClick={() => applyParagraphStyle({ alignment })}>{alignmentIcon(alignment)}</ToolbarToggle>
           ))}
         </div>
         <div className="ribbon-group compact insert-group">
-          <ToolbarToggle label="Lista con viñetas" active={Boolean(activeTextBlock?.list?.kind === "bullet")} onClick={() => toggleList("bullet")}>• Lista</ToolbarToggle>
-          <ToolbarToggle label="Lista numerada" active={Boolean(activeTextBlock?.list?.kind === "number")} onClick={() => toggleList("number")}>1. Lista</ToolbarToggle>
-          <button type="button" onMouseDown={preserveSelection} onClick={insertTable}>▦ Tabla</button>
-          <button type="button" onMouseDown={preserveSelection} onClick={requestImage}>▧ Imagen</button>
+          <ToolbarToggle label="Lista con viñetas" active={Boolean(activeTextBlock?.list?.kind === "bullet")} onClick={() => toggleList("bullet")}><BulletListIcon /></ToolbarToggle>
+          <ToolbarToggle label="Lista numerada" active={Boolean(activeTextBlock?.list?.kind === "number")} onClick={() => toggleList("number")}><NumberListIcon /></ToolbarToggle>
+          <button type="button" className="icon-button" title="Insertar tabla" onMouseDown={preserveSelection} onClick={insertTable}><TableIcon /></button>
+          <button type="button" className="icon-button" title="Insertar imagen" onMouseDown={preserveSelection} onClick={requestImage}><ImageIcon /></button>
         </div>
         <div className="ribbon-group compact layout-group">
-          <button type="button" onMouseDown={preserveSelection} onClick={() => insertLayoutBreak("page")}>Salto pág.</button>
-          <button type="button" onMouseDown={preserveSelection} onClick={() => insertLayoutBreak("column")}>Salto col.</button>
-          <button type="button" onMouseDown={preserveSelection} onClick={() => insertLayoutBreak("section")}>Nueva sección</button>
-          <button type="button" className={showLayoutPanel ? "active" : ""} onClick={() => setShowLayoutPanel((value) => !value)}>Diseño</button>
+          <button type="button" className="icon-button" title="Salto de página" onMouseDown={preserveSelection} onClick={() => insertLayoutBreak("page")}><PageBreakIcon /></button>
+          <button type="button" className="icon-button" title="Salto de columna" onMouseDown={preserveSelection} onClick={() => insertLayoutBreak("column")}><ColumnBreakIcon /></button>
+          <button type="button" className="icon-button" title="Nueva sección" onMouseDown={preserveSelection} onClick={() => insertLayoutBreak("section")}><SectionBreakIcon /></button>
+          <button type="button" className={showLayoutPanel ? "active" : ""} title="Diseño de página" onClick={() => setShowLayoutPanel((value) => !value)}><LayoutIcon /> Diseño</button>
         </div>
         <div className="ribbon-group compact review-group">
-          <ToolbarToggle label="Control de cambios" active={documentModel.review.trackChanges} onClick={() => commit({ type: "setTrackChanges", enabled: !documentModel.review.trackChanges })}>Δ Control</ToolbarToggle>
-          <button type="button" onMouseDown={preserveSelection} onClick={addComment}>Comentario</button>
-          <button type="button" onMouseDown={preserveSelection} onClick={setHyperlink}>Vínculo</button>
-          <button type="button" onMouseDown={preserveSelection} onClick={addBookmark}>Marcador</button>
-          <button type="button" className={showReviewPanel ? "active" : ""} onClick={() => setShowReviewPanel((value) => !value)}>Revisar</button>
+          <ToolbarToggle label="Control de cambios" active={documentModel.review.trackChanges} onClick={() => commit({ type: "setTrackChanges", enabled: !documentModel.review.trackChanges })}><TrackChangesIcon /></ToolbarToggle>
+          <button type="button" className="icon-button" title="Añadir comentario" onMouseDown={preserveSelection} onClick={addComment}><CommentIcon /></button>
+          <button type="button" className="icon-button" title="Insertar vínculo" onMouseDown={preserveSelection} onClick={setHyperlink}><LinkIcon /></button>
+          <button type="button" className="icon-button" title="Añadir marcador" onMouseDown={preserveSelection} onClick={addBookmark}><BookmarkIcon /></button>
+          <button type="button" className={showReviewPanel ? "active" : ""} title="Panel de revisión" onClick={() => setShowReviewPanel((value) => !value)}><ReviewIcon /> Revisar</button>
         </div>
         {selectedObject && isTableBlock(selectedObject) ? (
           <div className="ribbon-group object-group">
@@ -883,14 +911,14 @@ export function DocumentEditor({
           </div>
         ) : null}
         <div className="ribbon-group view-group">
-          <button type="button" onClick={() => setZoom((value) => Math.max(0.6, value - 0.1))}>−</button>
+          <button type="button" className="icon-button" title="Alejar" onClick={() => setZoom((value) => Math.max(0.6, value - 0.1))}><ZoomOutIcon /></button>
           <span>{Math.round(zoom * 100)}%</span>
-          <button type="button" onClick={() => setZoom((value) => Math.min(1.25, value + 0.1))}>+</button>
-          <button type="button" onClick={() => window.print()}>Imprimir</button>
-          <button type="button" onClick={() => downloadDocument("docx")}>DOCX</button>
-          <button type="button" onClick={() => downloadDocument("odt")}>ODT</button>
-          <button type="button" onClick={() => officeInputRef.current?.click()}>Abrir</button>
-          <button type="button" className={showInspector ? "active" : ""} onClick={() => setShowInspector((value) => !value)}>Modelo</button>
+          <button type="button" className="icon-button" title="Acercar" onClick={() => setZoom((value) => Math.min(1.25, value + 0.1))}><ZoomInIcon /></button>
+          <button type="button" className="icon-button" title="Imprimir" onClick={() => window.print()}><PrintIcon /></button>
+          <button type="button" title="Descargar DOCX" onClick={() => downloadDocument("docx")}><DownloadIcon /> DOCX</button>
+          <button type="button" title="Descargar ODT" onClick={() => downloadDocument("odt")}><DownloadIcon /> ODT</button>
+          <button type="button" title="Abrir archivo DOCX u ODT" onClick={() => officeInputRef.current?.click()}><OpenIcon /> Abrir</button>
+          <button type="button" className={showInspector ? "active" : ""} title="Inspector del modelo" onClick={() => setShowInspector((value) => !value)}><InspectorIcon /></button>
         </div>
       </div>
 
@@ -1278,9 +1306,19 @@ function preserveSelection(event: MouseEvent<HTMLElement>) {
   event.preventDefault();
 }
 
-function alignmentIcon(alignment: TextAlignment): string {
-  return alignment === "left" ? "≡" : alignment === "center" ? "≣" : alignment === "right" ? "☰" : "▤";
+function alignmentIcon(alignment: TextAlignment): ReactNode {
+  if (alignment === "left") return <AlignLeftIcon />;
+  if (alignment === "center") return <AlignCenterIcon />;
+  if (alignment === "right") return <AlignRightIcon />;
+  return <AlignJustifyIcon />;
 }
+
+const ALIGNMENT_LABELS: Record<TextAlignment, string> = {
+  left: "Alinear a la izquierda",
+  center: "Centrar",
+  right: "Alinear a la derecha",
+  justify: "Justificar",
+};
 
 function defaultStyle(): TextStyle {
   return {
