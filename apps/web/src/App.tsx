@@ -26,6 +26,7 @@ import {
   type TextDocument,
 } from "@web-office/engine-client";
 import { DocumentEditor } from "./editor/DocumentEditor";
+import { VersionHistory } from "./editor/VersionHistory";
 import { DriveView, type DownloadFormat } from "./drive/DriveView";
 import { RhinoMark } from "./branding/RhinoMark";
 import { SettingsControl } from "./settings/SettingsControl";
@@ -70,6 +71,7 @@ export function App() {
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [engineKind, setEngineKind] = useState<OfficeEngineClient["kind"]>("typescript-fallback");
+  const [showHistory, setShowHistory] = useState(false);
 
   const refreshCatalog = useCallback(async () => {
     setDriveLoading(true);
@@ -481,19 +483,36 @@ export function App() {
                         ? t("localOnlyState")
                         : t("savedCloud")}
                 </span>
+                <button
+                  type="button"
+                  className={`chip chip-button ${showHistory ? "on" : ""}`}
+                  aria-pressed={showHistory}
+                  onClick={() => setShowHistory((value) => !value)}
+                >🕘 {t("history")}</button>
                 <span className="chip subtle">{engineKind === "rust-wasm" ? "Rust/WASM" : "TypeScript"}</span>
                 <span className="chip subtle">r{documentModel.metadata.revision}</span>
               </div>
             </header>
 
-            <DocumentEditor
-              document={documentModel}
-              engine={engineRef.current}
-              onDocumentChange={handleDocumentChange}
-              onMessage={setMessage}
-              onOpenDocument={(imported) => void openImported(imported)}
-              onSave={() => void persist()}
-            />
+            <div className={`editor-with-history ${showHistory ? "open" : ""}`}>
+              <DocumentEditor
+                document={documentModel}
+                engine={engineRef.current}
+                onDocumentChange={handleDocumentChange}
+                onMessage={setMessage}
+                onOpenDocument={(imported) => void openImported(imported)}
+                onSave={() => void persist()}
+              />
+              {showHistory ? (
+                <VersionHistory
+                  documentId={documentModel.metadata.id}
+                  currentRevision={documentModel.metadata.revision}
+                  onClose={() => setShowHistory(false)}
+                  onRestored={(restored) => void openDocument(restored, true)}
+                  onMessage={setMessage}
+                />
+              ) : null}
+            </div>
 
             {message ? <div className="stage-message" role="status">{message}</div> : null}
           </div>

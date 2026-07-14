@@ -3,6 +3,7 @@ package document
 import (
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 const previewRunes = 180
@@ -23,6 +24,28 @@ type contentShape struct {
 			} `json:"cells"`
 		} `json:"rows"`
 	} `json:"blocks"`
+}
+
+// WithRevision devuelve el contenido con su metadata.revision y updatedAt
+// puestos al valor dado. El documento lleva la revisión dentro, así que al
+// restaurar una versión antigua hay que reescribirla: si no, el registro diría
+// una revisión y su contenido otra, y el editor mostraría la equivocada.
+func WithRevision(content json.RawMessage, revision int64, updatedAt time.Time) json.RawMessage {
+	var shape map[string]any
+	if err := json.Unmarshal(content, &shape); err != nil {
+		return content
+	}
+	metadata, ok := shape["metadata"].(map[string]any)
+	if !ok {
+		return content
+	}
+	metadata["revision"] = revision
+	metadata["updatedAt"] = updatedAt.UnixMilli()
+	patched, err := json.Marshal(shape)
+	if err != nil {
+		return content
+	}
+	return patched
 }
 
 // Derive obtiene el extracto y el conteo de palabras del contenido. El servidor

@@ -67,6 +67,33 @@ func (record Record) Summary() Summary {
 	}
 }
 
+// Version es una instantánea del documento tal como quedó en una revisión.
+type Version struct {
+	Revision  int64           `json:"revision"`
+	Title     string          `json:"title"`
+	WordCount int             `json:"wordCount"`
+	SavedAt   time.Time       `json:"savedAt"`
+	Content   json.RawMessage `json:"content,omitempty"`
+}
+
+// VersionSummary describe una versión sin arrastrar su contenido, para poder
+// listar el historial barato.
+type VersionSummary struct {
+	Revision  int64     `json:"revision"`
+	Title     string    `json:"title"`
+	WordCount int       `json:"wordCount"`
+	SavedAt   time.Time `json:"savedAt"`
+}
+
+func (version Version) Summary() VersionSummary {
+	return VersionSummary{
+		Revision:  version.Revision,
+		Title:     version.Title,
+		WordCount: version.WordCount,
+		SavedAt:   version.SavedAt,
+	}
+}
+
 // Folder es un contenedor de documentos dentro de la unidad de archivos.
 type Folder struct {
 	ID        string     `json:"id"`

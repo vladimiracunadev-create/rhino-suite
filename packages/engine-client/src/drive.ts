@@ -287,6 +287,49 @@ export async function restoreDocument(id: string): Promise<void> {
   await documentAction(id, "restore");
 }
 
+// ── Historial de versiones ──────────────────────────────────────────────────
+
+export interface DocumentVersion {
+  revision: number;
+  title: string;
+  wordCount: number;
+  savedAt: string;
+}
+
+/** Lista el historial de un documento, de la revisión más nueva a la más vieja. */
+export async function listVersions(id: string): Promise<DocumentVersion[]> {
+  const response = await expectOk(await fetch(`${DOCS_URL}/${encodeURIComponent(id)}/versions`));
+  const payload = (await response.json()) as { items: DocumentVersion[] };
+  return payload.items;
+}
+
+/** Recupera el documento tal como quedó en una revisión anterior. */
+export async function getVersionDocument(id: string, revision: number): Promise<TextDocument | null> {
+  const response = await fetch(`${DOCS_URL}/${encodeURIComponent(id)}/versions/${revision}`);
+  if (response.status === 404) return null;
+  await expectOk(response);
+  const version = (await response.json()) as { content: TextDocument };
+  try {
+    return normalizeDocument(version.content);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Vuelve a dejar como actual el contenido de una versión anterior. No borra
+ * nada: se guarda como una revisión nueva, así que restaurar también queda en
+ * el historial y se puede deshacer.
+ */
+export async function restoreVersion(id: string, revision: number): Promise<TextDocument | null> {
+  await expectOk(
+    await fetch(`${DOCS_URL}/${encodeURIComponent(id)}/versions/${revision}/restore`, { method: "POST" }),
+  );
+  const restored = await findDocumentById(id);
+  if (restored) await saveLocalDocument(restored);
+  return restored;
+}
+
 // ── Carpetas ────────────────────────────────────────────────────────────────
 
 /** Lista las carpetas de la unidad. */

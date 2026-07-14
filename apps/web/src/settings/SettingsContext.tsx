@@ -125,6 +125,15 @@ const es: Dict = {
   scSave: "Guardar",
   inDrive: "En la unidad",
   inEditor: "En el editor",
+  history: "Historial",
+  historyTitle: "Historial de versiones",
+  historyEmpty: "Aún no hay versiones anteriores.",
+  historyHint: "Se guarda una versión cada vez que se guarda el documento.",
+  historyCurrent: "Actual",
+  restoreVersion: "Restaurar esta versión",
+  confirmRestore: "¿Restaurar la revisión {n}? El contenido actual se conserva en el historial.",
+  restored: "Revisión {n} restaurada.",
+  historyLimit: "Se conservan las {n} versiones más recientes.",
 };
 
 const en: Dict = {
@@ -244,6 +253,15 @@ const en: Dict = {
   scSave: "Save",
   inDrive: "In the drive",
   inEditor: "In the editor",
+  history: "History",
+  historyTitle: "Version history",
+  historyEmpty: "No earlier versions yet.",
+  historyHint: "A version is kept every time the document is saved.",
+  historyCurrent: "Current",
+  restoreVersion: "Restore this version",
+  confirmRestore: "Restore revision {n}? The current content stays in the history.",
+  restored: "Revision {n} restored.",
+  historyLimit: "The {n} most recent versions are kept.",
 };
 
 const dictionaries: Record<Lang, Dict> = { es, en };

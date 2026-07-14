@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,9 @@ func New(store document.Store, logger *slog.Logger, webOrigin string) http.Handl
 	mux.HandleFunc("POST /api/v1/documents/{id}/star", handler.starDocument)
 	mux.HandleFunc("POST /api/v1/documents/{id}/trash", handler.trashDocument)
 	mux.HandleFunc("POST /api/v1/documents/{id}/restore", handler.restoreDocument)
+	mux.HandleFunc("GET /api/v1/documents/{id}/versions", handler.listVersions)
+	mux.HandleFunc("GET /api/v1/documents/{id}/versions/{revision}", handler.getVersion)
+	mux.HandleFunc("POST /api/v1/documents/{id}/versions/{revision}/restore", handler.restoreVersion)
 	mux.HandleFunc("GET /api/v1/folders", handler.listFolders)
 	mux.HandleFunc("POST /api/v1/folders", handler.createFolder)
 	mux.HandleFunc("PUT /api/v1/folders/{id}", handler.updateFolder)
@@ -235,6 +239,79 @@ func (handler *Handler) restoreDocument(writer http.ResponseWriter, request *htt
 	}
 	record.TrashedAt = nil
 	handler.saveDocument(writer, request, record)
+}
+
+// ── Historial de versiones ──────────────────────────────────────────────────
+
+func (handler *Handler) listVersions(writer http.ResponseWriter, request *http.Request) {
+	versions, err := handler.store.ListVersions(request.Context(), request.PathValue("id"))
+	if err != nil {
+		handler.internalError(writer, request, err)
+		return
+	}
+	summaries := make([]document.VersionSummary, 0, len(versions))
+	for _, version := range versions {
+		summaries = append(summaries, version.Summary())
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"items": summaries})
+}
+
+func parseRevision(value string) (int64, error) {
+	return strconv.ParseInt(value, 10, 64)
+}
+
+func (handler *Handler) getVersion(writer http.ResponseWriter, request *http.Request) {
+	revision, err := parseRevision(request.PathValue("revision"))
+	if err != nil {
+		writeProblem(writer, http.StatusBadRequest, "La revisión debe ser un número.")
+		return
+	}
+	version, err := handler.store.GetVersion(request.Context(), request.PathValue("id"), revision)
+	if errors.Is(err, document.ErrNotFound) {
+		writeProblem(writer, http.StatusNotFound, "Esa versión no existe.")
+		return
+	}
+	if err != nil {
+		handler.internalError(writer, request, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, version)
+}
+
+// restoreVersion vuelve a poner el contenido de una versión anterior como el
+// actual. No borra nada: se guarda como una revisión nueva, de modo que
+// restaurar también queda en el historial y se puede deshacer.
+func (handler *Handler) restoreVersion(writer http.ResponseWriter, request *http.Request) {
+	revision, err := parseRevision(request.PathValue("revision"))
+	if err != nil {
+		writeProblem(writer, http.StatusBadRequest, "La revisión debe ser un número.")
+		return
+	}
+	record, ok := handler.loadDocument(writer, request)
+	if !ok {
+		return
+	}
+	version, err := handler.store.GetVersion(request.Context(), record.ID, revision)
+	if errors.Is(err, document.ErrNotFound) {
+		writeProblem(writer, http.StatusNotFound, "Esa versión no existe.")
+		return
+	}
+	if err != nil {
+		handler.internalError(writer, request, err)
+		return
+	}
+
+	record.Title = version.Title
+	record.Revision = record.Revision + 1
+	record.UpdatedAt = time.Now().UTC()
+	// El documento lleva su revisión dentro: se reescribe para que el registro y
+	// su contenido no digan cosas distintas.
+	record.Content = document.WithRevision(version.Content, record.Revision, record.UpdatedAt)
+	if err := handler.store.Put(request.Context(), record); err != nil {
+		writeProblem(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(writer, http.StatusOK, record)
 }
 
 // ── Carpetas ────────────────────────────────────────────────────────────────

@@ -443,6 +443,60 @@ body { background: var(--rs-bg); color: var(--rs-text); }
 .drop-card strong { font-size: 15px; }
 .drop-card small { color: var(--rs-faint); font-size: 12px; }
 
+/* ── Historial de versiones ──────────────────────────────────────────────── */
+.editor-with-history { display: grid; grid-template-columns: minmax(0, 1fr); }
+.editor-with-history.open { grid-template-columns: minmax(0, 1fr) 300px; }
+.history-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--rs-border);
+  background: var(--rs-surface);
+}
+.history-panel > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 13px 14px; border-bottom: 1px solid var(--rs-border);
+  font-size: 13px;
+}
+.history-panel > header button {
+  width: 26px; height: 26px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--rs-muted);
+}
+.history-panel > header button:hover { background: var(--rs-surface-2); color: var(--rs-text); }
+.history-loading, .history-empty { display: grid; place-items: center; gap: 8px; padding: 40px 20px; text-align: center; color: var(--rs-muted); }
+.history-empty p { margin: 0; font-size: 13px; }
+.history-empty small { color: var(--rs-faint); font-size: 11.5px; }
+.history-list { flex: 1; overflow: auto; margin: 0; padding: 10px; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.history-list li {
+  display: grid; gap: 3px;
+  padding: 11px 12px; border: 1px solid var(--rs-border); border-radius: 10px;
+  background: var(--rs-surface);
+}
+.history-list li.current { border-color: var(--rs-accent); background: var(--rs-accent-soft); }
+.history-row { display: flex; align-items: center; gap: 7px; }
+.history-rev { color: var(--rs-faint); font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.history-tag { padding: 1px 7px; border-radius: 99px; background: var(--rs-accent); color: #fff; font-size: 9.5px; font-weight: 700; }
+.history-title { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-list small { color: var(--rs-faint); font-size: 10.5px; }
+.history-list button {
+  margin-top: 6px; padding: 6px 9px;
+  border: 1px solid var(--rs-border-strong); border-radius: 7px;
+  background: var(--rs-surface); color: var(--rs-muted);
+  font-size: 11.5px; font-weight: 600;
+}
+.history-list button:hover { border-color: var(--rs-accent); background: var(--rs-accent-soft); color: var(--rs-accent); }
+.history-panel > footer { padding: 10px 14px; border-top: 1px solid var(--rs-border); color: var(--rs-faint); font-size: 10.5px; }
+
+.chip-button { cursor: pointer; }
+.chip-button:hover { border-color: var(--rs-border-strong); color: var(--rs-text); }
+.chip-button.on { background: var(--rs-accent-soft); border-color: transparent; color: var(--rs-accent); }
+
+@media (max-width: 1080px) {
+  .editor-with-history.open { grid-template-columns: minmax(0, 1fr); }
+  .history-panel { border-left: 0; border-top: 1px solid var(--rs-border); }
+  .history-list { max-height: 320px; }
+}
+
 /* ── Selección múltiple y acciones en lote ───────────────────────────────── */
 .file-card { user-select: none; }
 .file-card.selected {
