@@ -296,6 +296,134 @@ body { background: var(--rs-bg); color: var(--rs-text); }
 }
 
 /* ============================================================================
+   Secciones, rutas y carpetas
+   ========================================================================== */
+.drive-sections { display: flex; gap: 6px; margin: 22px 0 14px; flex-wrap: wrap; }
+.section-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border: 1px solid var(--rs-border); border-radius: 99px;
+  background: var(--rs-surface); color: var(--rs-muted);
+  font-size: 13px; font-weight: 600;
+}
+.section-tab:hover { border-color: var(--rs-border-strong); color: var(--rs-text); }
+.section-tab.active { background: var(--rs-accent-soft); border-color: transparent; color: var(--rs-accent); }
+.section-ico { font-size: 13px; }
+.section-count {
+  min-width: 20px; padding: 1px 6px; border-radius: 99px;
+  background: var(--rs-surface-2); color: var(--rs-faint);
+  font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center;
+}
+.section-tab.active .section-count { background: var(--rs-surface); color: var(--rs-accent); }
+
+.drive-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-bottom: 14px; }
+.crumb-part { display: inline-flex; align-items: center; gap: 2px; }
+.crumb {
+  padding: 5px 9px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--rs-muted); font-size: 13px; font-weight: 600;
+}
+.crumb:hover { background: var(--rs-surface-2); color: var(--rs-text); }
+.crumb.current { color: var(--rs-text); font-weight: 700; }
+.crumb-sep { color: var(--rs-faint); font-size: 13px; }
+
+.new-folder-row {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 16px; padding: 10px 12px;
+  border: 1px dashed var(--rs-border-strong); border-radius: 12px; background: var(--rs-surface);
+}
+.new-folder-row input {
+  flex: 1; min-width: 0; padding: 8px 10px;
+  border: 1px solid var(--rs-border-strong); border-radius: 9px;
+  background: var(--rs-surface); color: var(--rs-text); font-size: 13.5px; outline: 0;
+}
+.new-folder-row input:focus { border-color: var(--rs-accent); box-shadow: 0 0 0 3px var(--rs-accent-soft); }
+.folder-ico { font-size: 17px; }
+
+.drive-block { margin-bottom: 24px; }
+.block-title {
+  margin: 0 0 12px; color: var(--rs-faint);
+  font-size: 10.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+}
+.folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.folder-card {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--rs-border); border-radius: 12px;
+  background: var(--rs-surface); box-shadow: var(--rs-shadow-sm);
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.folder-card:hover { transform: translateY(-2px); box-shadow: var(--rs-shadow); border-color: var(--rs-border-strong); }
+.folder-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px;
+  padding: 10px; border: 0; border-radius: 9px; background: transparent; text-align: left; color: inherit;
+}
+.folder-text { display: grid; min-width: 0; }
+.folder-text strong { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-text small { margin-top: 2px; color: var(--rs-faint); font-size: 11px; }
+.folder-actions { display: flex; gap: 2px; opacity: .5; transition: opacity .12s ease; }
+.folder-card:hover .folder-actions { opacity: 1; }
+.folder-actions button {
+  width: 28px; height: 28px; display: grid; place-items: center;
+  border: 0; border-radius: 7px; background: transparent; color: var(--rs-muted); font-size: 12px;
+}
+.folder-actions button:hover { background: var(--rs-surface-2); color: var(--rs-text); }
+.folder-actions button.danger:hover { background: #fdeaea; color: var(--rs-red); }
+
+/* ── Orden, menú de tarjeta y modal ──────────────────────────────────────── */
+.toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sort-control { display: inline-flex; align-items: center; gap: 7px; color: var(--rs-faint); font-size: 12px; font-weight: 600; }
+.sort-control select {
+  padding: 8px 10px; border: 1px solid var(--rs-border-strong); border-radius: 9px;
+  background: var(--rs-surface); color: var(--rs-text); font-size: 12.5px; font-weight: 600;
+}
+
+.file-star-flag {
+  position: absolute; top: 12px; left: 12px;
+  width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 50%; background: rgba(255, 255, 255, .92); color: #e0a800; font-size: 13px;
+  box-shadow: 0 3px 8px rgba(16, 24, 40, .18);
+}
+.file-icons button.starred { color: #e0a800; }
+
+.menu-anchor { position: relative; }
+.card-menu {
+  position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 40;
+  min-width: 210px; padding: 6px;
+  border: 1px solid var(--rs-border); border-radius: 11px;
+  background: var(--rs-surface); box-shadow: var(--rs-shadow);
+}
+.card-menu button {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--rs-text); font-size: 12.5px; font-weight: 600; text-align: left;
+}
+.card-menu button:hover { background: var(--rs-surface-2); }
+.card-menu button.danger { color: var(--rs-red); }
+.card-menu button.danger:hover { background: #fdeaea; }
+.card-menu hr { margin: 5px 6px; border: 0; border-top: 1px solid var(--rs-border); }
+
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 70;
+  display: grid; place-items: center; padding: 20px;
+  background: rgba(11, 16, 32, .5); backdrop-filter: blur(2px);
+}
+.modal {
+  width: min(420px, 100%); padding: 20px;
+  border: 1px solid var(--rs-border); border-radius: 16px;
+  background: var(--rs-surface); box-shadow: var(--rs-shadow);
+}
+.modal-title { margin: 0 0 14px; font-size: 15px; font-weight: 800; }
+.folder-picker { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
+.folder-picker button {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 12px; border: 1px solid var(--rs-border); border-radius: 10px;
+  background: var(--rs-surface); color: var(--rs-text); font-size: 13px; font-weight: 600; text-align: left;
+}
+.folder-picker button:hover { border-color: var(--rs-accent); background: var(--rs-accent-soft); color: var(--rs-accent); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.drive-btn.danger { border-color: #f0c2c2; background: #fef5f5; color: var(--rs-red); }
+.drive-btn.danger:hover { background: #fdeaea; }
+
+/* ============================================================================
    Marca: rinoceronte
    ========================================================================== */
 .rail-mark svg, .rail-ico svg { display: block; }
@@ -357,6 +485,13 @@ body { background: var(--rs-bg); color: var(--rs-text); }
 :root[data-theme="dark"] .chip.save-dirty { background: rgba(230, 165, 61, .12); border-color: rgba(230, 165, 61, .3); }
 :root[data-theme="dark"] .chip.save-saving { border-color: rgba(139, 135, 255, .35); }
 :root[data-theme="dark"] .chip.save-local-only { background: rgba(177, 139, 255, .12); border-color: rgba(177, 139, 255, .3); }
+:root[data-theme="dark"] .folder-actions button.danger:hover,
+:root[data-theme="dark"] .card-menu button.danger:hover { background: rgba(244, 113, 113, .16); }
+:root[data-theme="dark"] .drive-btn.danger { border-color: rgba(244, 113, 113, .4); background: rgba(244, 113, 113, .12); }
+:root[data-theme="dark"] .drive-btn.danger:hover { background: rgba(244, 113, 113, .2); }
+:root[data-theme="dark"] .file-star-flag { background: rgba(30, 34, 48, .92); color: #f0c24b; }
+:root[data-theme="dark"] .file-icons button.starred { color: #f0c24b; }
+:root[data-theme="dark"] .modal-backdrop { background: rgba(0, 0, 0, .62); }
 
 /* ============================================================================
    Configuración flotante (esquina inferior derecha)

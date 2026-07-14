@@ -1,18 +1,29 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
+  createFolder,
   createOfficeEngine,
   deleteDocumentEverywhere,
+  deleteFolder,
+  exportDocx,
+  exportOdt,
   listDriveCatalog,
+  moveDocumentToFolder,
   normalizeDocument,
+  restoreDocument,
   restoreOfficeEngine,
   saveDocumentEverywhere,
+  saveDocumentToCloud,
+  starDocument,
   syncLocalToCloud,
+  trashDocument,
+  updateFolder,
   type DriveCatalog,
+  type DriveFolder,
   type OfficeEngineClient,
   type TextDocument,
 } from "@web-office/engine-client";
 import { DocumentEditor } from "./editor/DocumentEditor";
-import { DriveView } from "./drive/DriveView";
+import { DriveView, type DownloadFormat } from "./drive/DriveView";
 import { RhinoMark } from "./branding/RhinoMark";
 import { SettingsControl } from "./settings/SettingsControl";
 import { useSettings } from "./settings/SettingsContext";
@@ -22,15 +33,25 @@ type SaveState = "saved" | "saving" | "dirty" | "local-only";
 
 const newId = () => `doc-${crypto.randomUUID()}`;
 
-function downloadDocument(document: TextDocument) {
-  const blob = new Blob([JSON.stringify(normalizeDocument(document), null, 2)], {
-    type: "application/json",
-  });
+const MIME: Record<DownloadFormat, string> = {
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  odt: "application/vnd.oasis.opendocument.text",
+  json: "application/json",
+};
+
+function downloadDocument(document: TextDocument, format: DownloadFormat) {
+  const payload: BlobPart =
+    format === "docx"
+      ? (exportDocx(document) as unknown as BlobPart)
+      : format === "odt"
+        ? (exportOdt(document) as unknown as BlobPart)
+        : JSON.stringify(normalizeDocument(document), null, 2);
+  const blob = new Blob([payload], { type: MIME[format] });
   const url = URL.createObjectURL(blob);
   const anchor = window.document.createElement("a");
   const safeTitle = (document.metadata.title || "documento").replace(/[^\p{L}\p{N}\-_ ]/gu, "").trim() || "documento";
   anchor.href = url;
-  anchor.download = `${safeTitle}.rhino.json`;
+  anchor.download = format === "json" ? `${safeTitle}.rhino.json` : `${safeTitle}.${format}`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -103,10 +124,19 @@ export function App() {
     autosaveTimerRef.current = window.setTimeout(() => { void persist(next); }, 1400);
   }, [persist]);
 
-  const createNew = useCallback(async () => {
+  const createNew = useCallback(async (folderId = "") => {
     setMessage("Creando documento…");
-    activateEngine(await createOfficeEngine("Documento sin título"));
-  }, [activateEngine]);
+    const engine = await createOfficeEngine("Documento sin título");
+    activateEngine(engine);
+    // Se registra de inmediato en la carpeta elegida; a partir de ahí la API
+    // conserva la organización en cada guardado posterior.
+    try {
+      await saveDocumentToCloud(engine.getDocument(), folderId);
+      void refreshCatalog();
+    } catch {
+      /* sin nube: quedará en la raíz y se subirá al sincronizar */
+    }
+  }, [activateEngine, refreshCatalog]);
 
   const openDocument = useCallback(async (saved: TextDocument) => {
     try {
@@ -171,9 +201,64 @@ export function App() {
 
   const deleteFromDrive = useCallback(async (document: TextDocument) => {
     await deleteDocumentEverywhere(document.metadata.id);
-    setMessage(`«${document.metadata.title || "Documento"}» eliminado.`);
+    setMessage(`«${document.metadata.title || "Documento"}» eliminado definitivamente.`);
     void refreshCatalog();
   }, [refreshCatalog]);
+
+  /** Envuelve una acción de organización: ejecuta, informa y refresca. */
+  const runDriveAction = useCallback(async (action: () => Promise<unknown>, success: string) => {
+    try {
+      await action();
+      setMessage(success);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "La acción no se pudo completar.");
+    }
+    void refreshCatalog();
+  }, [refreshCatalog]);
+
+  const starFromDrive = useCallback((document: TextDocument, starred: boolean) => {
+    const name = document.metadata.title || "Documento";
+    void runDriveAction(
+      () => starDocument(document, starred),
+      starred ? `«${name}» destacado.` : `«${name}» ya no está destacado.`,
+    );
+  }, [runDriveAction]);
+
+  const moveFromDrive = useCallback((document: TextDocument, folderId: string) => {
+    void runDriveAction(
+      () => moveDocumentToFolder(document, folderId),
+      `«${document.metadata.title || "Documento"}» movido.`,
+    );
+  }, [runDriveAction]);
+
+  const trashFromDrive = useCallback((document: TextDocument) => {
+    void runDriveAction(
+      () => trashDocument(document),
+      `«${document.metadata.title || "Documento"}» está en la papelera.`,
+    );
+  }, [runDriveAction]);
+
+  const restoreFromDrive = useCallback((document: TextDocument) => {
+    void runDriveAction(
+      () => restoreDocument(document),
+      `«${document.metadata.title || "Documento"}» restaurado.`,
+    );
+  }, [runDriveAction]);
+
+  const createFolderFromDrive = useCallback((name: string, parentId: string) => {
+    void runDriveAction(() => createFolder(name, parentId), `Carpeta «${name}» creada.`);
+  }, [runDriveAction]);
+
+  const renameFolderFromDrive = useCallback((folder: DriveFolder, name: string) => {
+    void runDriveAction(() => updateFolder(folder, { name }), `Carpeta renombrada a «${name}».`);
+  }, [runDriveAction]);
+
+  const deleteFolderFromDrive = useCallback((folder: DriveFolder) => {
+    void runDriveAction(
+      () => deleteFolder(folder.id),
+      `Carpeta «${folder.name}» eliminada; sus documentos volvieron a Mis archivos.`,
+    );
+  }, [runDriveAction]);
 
   const syncAll = useCallback(async () => {
     setMessage("Sincronizando con la nube…");
@@ -245,11 +330,18 @@ export function App() {
             catalog={catalog}
             loading={driveLoading}
             onOpen={(document) => void openDocument(document)}
-            onCreate={() => void createNew()}
+            onCreate={(folderId) => void createNew(folderId)}
             onRename={(document, title) => void renameFromDrive(document, title)}
             onDuplicate={(document) => void duplicateFromDrive(document)}
             onDownload={downloadDocument}
-            onDelete={(document) => void deleteFromDrive(document)}
+            onStar={starFromDrive}
+            onMove={moveFromDrive}
+            onTrash={trashFromDrive}
+            onRestore={restoreFromDrive}
+            onDeleteForever={(document) => void deleteFromDrive(document)}
+            onCreateFolder={createFolderFromDrive}
+            onRenameFolder={renameFolderFromDrive}
+            onDeleteFolder={deleteFolderFromDrive}
             onRefresh={() => void refreshCatalog()}
             onSyncAll={() => void syncAll()}
           />
