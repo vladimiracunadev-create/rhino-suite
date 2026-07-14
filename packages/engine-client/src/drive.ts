@@ -282,10 +282,11 @@ export async function deleteFolder(id: string): Promise<void> {
  */
 export async function saveDocumentEverywhere(
   document: TextDocument,
+  folderId?: string,
 ): Promise<{ document: TextDocument; syncedToCloud: boolean; cloudError?: string }> {
   await saveLocalDocument(document);
   try {
-    const saved = await saveDocumentToCloud(document);
+    const saved = await saveDocumentToCloud(document, folderId);
     await saveLocalDocument(saved);
     return { document: saved, syncedToCloud: true };
   } catch (error) {

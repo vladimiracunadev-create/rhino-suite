@@ -6,6 +6,7 @@ import {
   deleteFolder,
   exportDocx,
   exportOdt,
+  importDocument,
   listDriveCatalog,
   moveDocumentToFolder,
   normalizeDocument,
@@ -245,6 +246,47 @@ export function App() {
     );
   }, [runDriveAction]);
 
+  /**
+   * Sube documentos DOCX u ODT a la unidad sin pasar por el editor: se importan
+   * al formato interno, se les da identidad propia y se guardan en la carpeta
+   * donde está el usuario.
+   */
+  const uploadToDrive = useCallback(async (files: FileList | File[], folderId: string) => {
+    const list = [...files];
+    const supported = list.filter((file) => /\.(docx|odt)$/i.test(file.name));
+    const rejected = list.length - supported.length;
+    if (supported.length === 0) {
+      setMessage("Solo se pueden subir archivos DOCX u ODT.");
+      return;
+    }
+
+    let uploaded = 0;
+    const warnings: string[] = [];
+    for (const file of supported) {
+      try {
+        setMessage(`Importando «${file.name}»…`);
+        const imported = await importDocument(await file.arrayBuffer(), file.name);
+        const now = Date.now();
+        const document = normalizeDocument({
+          ...imported.document,
+          metadata: { ...imported.document.metadata, id: newId(), revision: 0, createdAt: now, updatedAt: now },
+        });
+        await saveDocumentEverywhere(document, folderId);
+        uploaded += 1;
+        warnings.push(...imported.warnings);
+      } catch (error) {
+        setMessage(`No se pudo importar «${file.name}»: ${error instanceof Error ? error.message : "archivo no válido"}.`);
+        return;
+      }
+    }
+
+    const parts = [`${uploaded} documento(s) subido(s).`];
+    if (rejected > 0) parts.push(`${rejected} archivo(s) ignorado(s) por no ser DOCX u ODT.`);
+    if (warnings.length > 0) parts.push(`Avisos de conversión: ${warnings.length}.`);
+    setMessage(parts.join(" "));
+    void refreshCatalog();
+  }, [refreshCatalog]);
+
   const createFolderFromDrive = useCallback((name: string, parentId: string) => {
     void runDriveAction(() => createFolder(name, parentId), `Carpeta «${name}» creada.`);
   }, [runDriveAction]);
@@ -294,11 +336,22 @@ export function App() {
           </button>
           <button
             type="button"
-            className={`rail-link ${view === "editor" ? "active" : ""}`}
+            className={`rail-link ${view === "editor" ? "active" : ""} ${documentModel ? "has-doc" : ""}`}
             onClick={() => setView("editor")}
             disabled={!documentModel}
+            title={documentModel ? documentModel.metadata.title || t("untitled") : t("editor")}
           >
-            <span className="rail-ico">📝</span> {t("editor")}
+            <span className="rail-ico">📝</span>
+            {/* Con un documento abierto, el enlace dice cuál es: así se sabe a
+                dónde se vuelve, en vez de un "Editor" genérico. */}
+            {documentModel ? (
+              <span className="rail-link-doc">
+                <strong>{documentModel.metadata.title || t("untitled")}</strong>
+                <small>{t("continueEditing")}</small>
+              </span>
+            ) : (
+              <span>{t("editor")}</span>
+            )}
           </button>
         </nav>
 
@@ -342,6 +395,8 @@ export function App() {
             onCreateFolder={createFolderFromDrive}
             onRenameFolder={renameFolderFromDrive}
             onDeleteFolder={deleteFolderFromDrive}
+            onUpload={(files, folderId) => void uploadToDrive(files, folderId)}
+            openDocumentId={documentModel?.metadata.id ?? null}
             onRefresh={() => void refreshCatalog()}
             onSyncAll={() => void syncAll()}
           />

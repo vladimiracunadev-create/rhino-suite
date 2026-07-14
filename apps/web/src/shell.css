@@ -423,6 +423,36 @@ body { background: var(--rs-bg); color: var(--rs-text); }
 .drive-btn.danger { border-color: #f0c2c2; background: #fef5f5; color: var(--rs-red); }
 .drive-btn.danger:hover { background: #fdeaea; }
 
+/* ── Subir archivos: zona de arrastre ────────────────────────────────────── */
+.drive { position: relative; }
+.drive.dropping { outline: 2px dashed var(--rs-accent); outline-offset: -12px; border-radius: 18px; }
+.drop-overlay {
+  position: absolute; inset: 0; z-index: 50;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--rs-accent) 10%, var(--rs-bg));
+  border-radius: 18px;
+  pointer-events: none;
+}
+.drop-card {
+  display: grid; justify-items: center; gap: 6px;
+  padding: 28px 40px; border-radius: var(--rs-radius);
+  background: var(--rs-surface); border: 2px dashed var(--rs-accent);
+  box-shadow: var(--rs-shadow);
+}
+.drop-art { font-size: 34px; }
+.drop-card strong { font-size: 15px; }
+.drop-card small { color: var(--rs-faint); font-size: 12px; }
+
+.loc-badge.open { background: color-mix(in srgb, var(--rs-green) 14%, var(--rs-surface)); color: var(--rs-green); }
+.loc-badge.folder { background: var(--rs-surface-2); color: var(--rs-muted); }
+
+/* Enlace del riel cuando hay un documento abierto */
+.rail-link-doc { display: grid; min-width: 0; line-height: 1.2; }
+.rail-link-doc strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-link-doc small { margin-top: 2px; color: var(--rs-faint); font-size: 10px; font-weight: 600; }
+.rail-link.has-doc { align-items: center; }
+.rail-link.active .rail-link-doc small { color: var(--rs-accent); }
+
 /* ============================================================================
    Marca: rinoceronte
    ========================================================================== */

@@ -10,7 +10,7 @@ import {
 import { useSettings, type Translator } from "../settings/SettingsContext";
 
 export type DownloadFormat = "docx" | "odt" | "json";
-type Section = "files" | "starred" | "trash";
+type Section = "recent" | "files" | "starred" | "trash";
 type ViewMode = "grid" | "list";
 type SortMode = "recent" | "name" | "words";
 
@@ -30,8 +30,11 @@ interface DriveViewProps {
   onCreateFolder: (name: string, parentId: string) => void;
   onRenameFolder: (folder: DriveFolder, name: string) => void;
   onDeleteFolder: (folder: DriveFolder) => void;
+  onUpload: (files: FileList | File[], folderId: string) => void;
   onRefresh: () => void;
   onSyncAll: () => void;
+  /** Documento abierto ahora mismo en el editor, si lo hay. */
+  openDocumentId: string | null;
 }
 
 const relativeTime = (timestamp: number, t: Translator, locale: string): string => {
@@ -60,8 +63,10 @@ export function DriveView(props: DriveViewProps) {
   const { catalog, loading, onOpen, onCreate } = props;
   const { t, lang } = useSettings();
 
-  const [section, setSection] = useState<Section>("files");
+  const [section, setSection] = useState<Section>("recent");
   const [folderId, setFolderId] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const uploadRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewMode>("grid");
   const [sort, setSort] = useState<SortMode>("recent");
@@ -130,6 +135,8 @@ export function DriveView(props: DriveViewProps) {
       if (section === "trash") return entry.trashed;
       if (entry.trashed) return false;
       if (section === "starred") return entry.starred;
+      // "Recientes" es una vista plana: atraviesa carpetas, como en Drive.
+      if (section === "recent") return true;
       // Al buscar, se busca en toda la unidad, no solo en la carpeta actual.
       return needle ? true : entry.folderId === folderId;
     });
@@ -187,16 +194,55 @@ export function DriveView(props: DriveViewProps) {
   };
 
   const sections: { key: Section; label: string; icon: string; count: number }[] = [
+    { key: "recent", label: t("recent"), icon: "🕘", count: stats.total },
     { key: "files", label: t("myFiles"), icon: "🗂", count: stats.total },
     { key: "starred", label: t("starred"), icon: "★", count: stats.starred },
     { key: "trash", label: t("trash"), icon: "🗑", count: stats.trashed },
   ];
 
+  const folderName = (id: string) => folders.find((folder) => folder.id === id)?.name ?? null;
+
+  const handleFiles = (files: FileList | File[] | null) => {
+    if (!files || files.length === 0) return;
+    props.onUpload(files, section === "files" ? folderId : "");
+  };
+
+  const headings: Record<Section, string> = {
+    recent: t("recent"),
+    files: t("myFiles"),
+    starred: t("starred"),
+    trash: t("trash"),
+  };
+
   return (
-    <div className="drive">
+    <div
+      className={`drive ${dragging ? "dropping" : ""}`}
+      onDragOver={(event) => { event.preventDefault(); if (!dragging) setDragging(true); }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
+      onDrop={(event) => { event.preventDefault(); setDragging(false); handleFiles(event.dataTransfer?.files ?? null); }}
+    >
+      {dragging ? (
+        <div className="drop-overlay" aria-hidden>
+          <div className="drop-card">
+            <span className="drop-art">📥</span>
+            <strong>{t("dropHere")}</strong>
+            <small>{t("dropHint")}</small>
+          </div>
+        </div>
+      ) : null}
+
+      <input
+        ref={uploadRef}
+        type="file"
+        multiple
+        accept=".docx,.odt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text"
+        hidden
+        onChange={(event: ChangeEvent<HTMLInputElement>) => { handleFiles(event.target.files); event.target.value = ""; }}
+      />
+
       <header className="drive-head">
         <div className="drive-head-title">
-          <h1>{section === "files" ? t("myFiles") : section === "starred" ? t("starred") : t("trash")}</h1>
+          <h1>{headings[section]}</h1>
           <p>{t("filesSubtitle")}</p>
         </div>
         <div className="drive-head-actions">
@@ -210,6 +256,11 @@ export function DriveView(props: DriveViewProps) {
             </button>
           ) : null}
           <button type="button" className="drive-btn ghost" onClick={props.onRefresh}>⟳ {t("refresh")}</button>
+          {section !== "trash" ? (
+            <button type="button" className="drive-btn ghost" onClick={() => uploadRef.current?.click()}>
+              ↑ {t("uploadFile")}
+            </button>
+          ) : null}
           {section === "files" ? (
             <button type="button" className="drive-btn ghost" onClick={() => setCreatingFolder(true)}>
               📁 {t("newFolder")}
@@ -325,14 +376,22 @@ export function DriveView(props: DriveViewProps) {
         <div className="drive-empty"><div className="spinner" /><p>{t("loadingDrive")}</p></div>
       ) : visibleFolders.length === 0 && visibleDocs.length === 0 ? (
         <div className="drive-empty">
-          <div className="drive-empty-art">{section === "trash" ? "🗑" : section === "starred" ? "★" : "📄"}</div>
+          <div className="drive-empty-art">{section === "trash" ? "🗑" : section === "starred" ? "★" : section === "recent" ? "🕘" : "📄"}</div>
           <h2>
-            {query ? t("noResults") : section === "trash" ? t("trashEmpty") : section === "starred" ? t("starredEmpty") : folderId ? t("folderEmpty") : t("noDocsYet")}
+            {query ? t("noResults")
+              : section === "trash" ? t("trashEmpty")
+                : section === "starred" ? t("starredEmpty")
+                  : section === "recent" ? t("recentEmpty")
+                    : folderId ? t("folderEmpty") : t("noDocsYet")}
           </h2>
           <p>
-            {query ? t("tryAnotherSearch") : section === "trash" ? t("trashEmptyHint") : section === "starred" ? t("starredEmptyHint") : folderId ? t("folderEmptyHint") : t("createFirst")}
+            {query ? t("tryAnotherSearch")
+              : section === "trash" ? t("trashEmptyHint")
+                : section === "starred" ? t("starredEmptyHint")
+                  : section === "recent" ? t("recentEmptyHint")
+                    : folderId ? t("folderEmptyHint") : t("createFirst")}
           </p>
-          {!query && section === "files" ? (
+          {!query && (section === "files" || section === "recent") ? (
             <button type="button" className="drive-btn primary" onClick={() => onCreate(folderId)}>＋ {t("createDocument")}</button>
           ) : null}
         </div>
@@ -419,8 +478,12 @@ export function DriveView(props: DriveViewProps) {
                           <h3 className="file-title" title={meta.title}>{meta.title || t("untitled")}</h3>
                         )}
                         <div className="file-meta">
+                          {props.openDocumentId === meta.id ? <span className="loc-badge open">● {t("openNow")}</span> : null}
                           <span className={`loc-badge ${badge.tone}`}>{badge.icon} {badge.text}</span>
                           {entry.outOfSync ? <span className="loc-badge warn">⚠ {t("localChanges")}</span> : null}
+                          {section !== "files" && entry.folderId && folderName(entry.folderId) ? (
+                            <span className="loc-badge folder">📁 {t("inFolder", { name: folderName(entry.folderId)! })}</span>
+                          ) : null}
                         </div>
                         <div className="file-submeta">
                           <span>{relativeTime(meta.updatedAt, t, lang)}</span>

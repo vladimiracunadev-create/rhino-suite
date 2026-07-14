@@ -100,6 +100,16 @@ const es: Dict = {
   itemsCount: "{n} elementos",
   confirmDeleteForever: "¿Eliminar «{name}» para siempre? No se puede deshacer.",
   confirmEmptyTrash: "¿Vaciar la papelera? Se eliminarán {n} documentos para siempre.",
+  recent: "Recientes",
+  recentEmpty: "Todavía no hay actividad",
+  recentEmptyHint: "Los documentos que abras o edites aparecerán aquí.",
+  uploadFile: "Subir archivo",
+  dropHere: "Suelta el archivo para subirlo",
+  dropHint: "Se admiten documentos DOCX y ODT",
+  unsupportedFile: "Solo se pueden subir archivos DOCX u ODT.",
+  continueEditing: "Continuar",
+  openNow: "abierto",
+  inFolder: "en {name}",
 };
 
 const en: Dict = {
@@ -194,6 +204,16 @@ const en: Dict = {
   itemsCount: "{n} items",
   confirmDeleteForever: "Delete «{name}» forever? This can't be undone.",
   confirmEmptyTrash: "Empty the trash? {n} documents will be deleted forever.",
+  recent: "Recent",
+  recentEmpty: "No activity yet",
+  recentEmptyHint: "Documents you open or edit will show up here.",
+  uploadFile: "Upload file",
+  dropHere: "Drop the file to upload it",
+  dropHint: "DOCX and ODT documents are supported",
+  unsupportedFile: "Only DOCX or ODT files can be uploaded.",
+  continueEditing: "Continue",
+  openNow: "open",
+  inFolder: "in {name}",
 };
 
 const dictionaries: Record<Lang, Dict> = { es, en };
