@@ -13,6 +13,9 @@ import {
 } from "@web-office/engine-client";
 import { DocumentEditor } from "./editor/DocumentEditor";
 import { DriveView } from "./drive/DriveView";
+import { RhinoMark } from "./branding/RhinoMark";
+import { SettingsControl } from "./settings/SettingsControl";
+import { useSettings } from "./settings/SettingsContext";
 
 type View = "drive" | "editor";
 type SaveState = "saved" | "saving" | "dirty" | "local-only";
@@ -33,6 +36,7 @@ function downloadDocument(document: TextDocument) {
 }
 
 export function App() {
+  const { t } = useSettings();
   const engineRef = useRef<OfficeEngineClient | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const [view, setView] = useState<View>("drive");
@@ -184,7 +188,7 @@ export function App() {
     <div className="app-shell">
       <aside className="rail">
         <div className="rail-brand">
-          <span className="rail-mark">R</span>
+          <span className="rail-mark"><RhinoMark size={30} /></span>
           <div>
             <strong>Rhino Suite</strong>
             <small>Suite ofimática</small>
@@ -192,7 +196,7 @@ export function App() {
         </div>
 
         <button type="button" className="rail-new" onClick={() => void createNew()}>
-          ＋ Nuevo documento
+          ＋ {t("newDocument")}
         </button>
 
         <nav className="rail-nav" aria-label="Navegación principal">
@@ -201,7 +205,7 @@ export function App() {
             className={`rail-link ${view === "drive" ? "active" : ""}`}
             onClick={() => void goToDrive()}
           >
-            <span className="rail-ico">🗂</span> Mis archivos
+            <span className="rail-ico"><RhinoMark size={17} /></span> {t("myFiles")}
           </button>
           <button
             type="button"
@@ -209,19 +213,19 @@ export function App() {
             onClick={() => setView("editor")}
             disabled={!documentModel}
           >
-            <span className="rail-ico">📝</span> Editor
+            <span className="rail-ico">📝</span> {t("editor")}
           </button>
         </nav>
 
         <div className="rail-modules">
-          <p className="rail-label">Módulos</p>
+          <p className="rail-label">{t("modules")}</p>
           {[
-            ["📄", "Documentos", "Activo"],
-            ["📊", "Hoja de cálculo", "Próximo"],
-            ["📽", "Presentaciones", "Próximo"],
-            ["📕", "PDF", "Próximo"],
+            ["📄", t("documents"), t("active")],
+            ["📊", t("spreadsheet"), t("soon")],
+            ["📽", t("presentations"), t("soon")],
+            ["📕", t("pdf"), t("soon")],
           ].map(([icon, name, status]) => (
-            <div className={`rail-module ${status === "Activo" ? "on" : ""}`} key={name}>
+            <div className={`rail-module ${status === t("active") ? "on" : ""}`} key={name}>
               <span className="rail-ico">{icon}</span>
               <span className="rail-module-name">{name}</span>
               <span className="rail-module-status">{status}</span>
@@ -231,7 +235,7 @@ export function App() {
 
         <div className="rail-foot">
           <span className={`status-dot ${cloudOnline ? "online" : "offline"}`} />
-          {cloudOnline ? "Nube conectada" : "Nube sin conexión"}
+          {cloudOnline ? t("cloudConnected") : t("cloudOffline")}
         </div>
       </aside>
 
@@ -254,7 +258,7 @@ export function App() {
             <header className="editor-bar">
               <div className="editor-bar-left">
                 <button type="button" className="back-btn" onClick={() => void goToDrive()}>
-                  ← Mis archivos
+                  ← {t("myFiles")}
                 </button>
                 <span className="editor-crumb">
                   <span className="word-badge">W</span>
@@ -262,19 +266,19 @@ export function App() {
                     aria-label="Título del documento"
                     value={documentModel.metadata.title ?? ""}
                     onChange={(event: ChangeEvent<HTMLInputElement>) => rename(event.target.value)}
-                    placeholder="Documento sin título"
+                    placeholder={t("untitled")}
                   />
                 </span>
               </div>
               <div className="editor-bar-right">
                 <span className={`chip save-${saveState}`}>
                   {saveState === "saving"
-                    ? "Guardando…"
+                    ? t("savingState")
                     : saveState === "dirty"
-                      ? "Cambios pendientes"
+                      ? t("pendingChanges")
                       : saveState === "local-only"
-                        ? "Solo en este equipo"
-                        : "Guardado en la nube"}
+                        ? t("localOnlyState")
+                        : t("savedCloud")}
                 </span>
                 <span className="chip subtle">{engineKind === "rust-wasm" ? "Rust/WASM" : "TypeScript"}</span>
                 <span className="chip subtle">r{documentModel.metadata.revision}</span>
@@ -299,6 +303,8 @@ export function App() {
           </div>
         )}
       </main>
+
+      <SettingsControl />
     </div>
   );
 }

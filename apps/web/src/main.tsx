@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { SettingsProvider } from "./settings/SettingsContext";
 import "./styles.css";
 import "./shell.css";
 
@@ -9,6 +10,8 @@ if (!root) throw new Error("No se encontró el elemento raíz.");
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <SettingsProvider>
+      <App />
+    </SettingsProvider>
   </StrictMode>,
 );

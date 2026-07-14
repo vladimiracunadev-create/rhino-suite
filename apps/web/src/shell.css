@@ -294,3 +294,142 @@ body { background: var(--rs-bg); color: var(--rs-text); }
   .drive-stats { grid-template-columns: 1fr 1fr; }
   .editor-crumb input { min-width: 50vw; }
 }
+
+/* ============================================================================
+   Marca: rinoceronte
+   ========================================================================== */
+.rail-mark svg, .rail-ico svg { display: block; }
+.rail-ico { display: inline-flex; align-items: center; justify-content: center; width: 18px; }
+
+/* ============================================================================
+   Modo visual oscuro
+   Los componentes se estilan por tokens, así que basta redefinir la paleta.
+   Los pocos colores literales de estado se reajustan más abajo.
+   ========================================================================== */
+:root[data-theme="dark"] {
+  --rs-bg: #0e111b;
+  --rs-surface: #161a26;
+  --rs-surface-2: #1b2030;
+  --rs-border: #262c3d;
+  --rs-border-strong: #333a4f;
+  --rs-text: #e7eaf3;
+  --rs-muted: #a2abc0;
+  --rs-faint: #6f7891;
+  --rs-accent: #8b87ff;
+  --rs-accent-2: #a5a1ff;
+  --rs-accent-soft: #23264a;
+  --rs-green: #3ec07f;
+  --rs-amber: #e6a53d;
+  --rs-violet: #b18bff;
+  --rs-red: #f47171;
+  --rs-shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  --rs-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+}
+
+/* Evita el destello claro antes de que se aplique la preferencia guardada. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --rs-bg: #0e111b;
+    --rs-surface: #161a26;
+    --rs-surface-2: #1b2030;
+    --rs-border: #262c3d;
+    --rs-border-strong: #333a4f;
+    --rs-text: #e7eaf3;
+    --rs-muted: #a2abc0;
+    --rs-faint: #6f7891;
+    --rs-accent: #8b87ff;
+    --rs-accent-2: #a5a1ff;
+    --rs-accent-soft: #23264a;
+  }
+}
+
+:root[data-theme="dark"] .file-thumb { background: linear-gradient(135deg, #20263a, #241f3d); }
+:root[data-theme="dark"] .rail-module.on .rail-module-status { background: rgba(62, 192, 127, .16); }
+:root[data-theme="dark"] .cloud-pill.online { border-color: rgba(62, 192, 127, .4); background: rgba(62, 192, 127, .12); }
+:root[data-theme="dark"] .cloud-pill.offline { border-color: rgba(244, 113, 113, .4); background: rgba(244, 113, 113, .12); }
+:root[data-theme="dark"] .stat-card.warn { border-color: rgba(230, 165, 61, .4); background: rgba(230, 165, 61, .1); }
+:root[data-theme="dark"] .loc-badge.cloud { background: rgba(139, 135, 255, .16); color: var(--rs-accent); }
+:root[data-theme="dark"] .loc-badge.synced { background: rgba(62, 192, 127, .16); color: var(--rs-green); }
+:root[data-theme="dark"] .loc-badge.local { background: var(--rs-surface-2); color: var(--rs-muted); }
+:root[data-theme="dark"] .loc-badge.warn { background: rgba(230, 165, 61, .16); color: var(--rs-amber); }
+:root[data-theme="dark"] .file-open:hover { background: #2c3060; }
+:root[data-theme="dark"] .chip.save-saved { background: rgba(62, 192, 127, .12); border-color: rgba(62, 192, 127, .3); }
+:root[data-theme="dark"] .chip.save-dirty { background: rgba(230, 165, 61, .12); border-color: rgba(230, 165, 61, .3); }
+:root[data-theme="dark"] .chip.save-saving { border-color: rgba(139, 135, 255, .35); }
+:root[data-theme="dark"] .chip.save-local-only { background: rgba(177, 139, 255, .12); border-color: rgba(177, 139, 255, .3); }
+
+/* ============================================================================
+   Configuración flotante (esquina inferior derecha)
+   ========================================================================== */
+.settings-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.settings-btn {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--rs-border);
+  border-radius: 50%;
+  background: var(--rs-surface);
+  color: var(--rs-muted);
+  font-size: 20px;
+  box-shadow: var(--rs-shadow);
+  transition: color .12s ease, transform .2s ease;
+}
+.settings-btn:hover { color: var(--rs-accent); }
+.settings-btn[aria-expanded="true"] { color: var(--rs-accent); }
+.settings-btn[aria-expanded="true"] .settings-gear { transform: rotate(60deg); }
+.settings-gear { display: block; line-height: 1; transition: transform .25s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-gear, .settings-btn { transition: none; }
+}
+
+.settings-panel {
+  width: 248px;
+  padding: 16px;
+  border: 1px solid var(--rs-border);
+  border-radius: var(--rs-radius);
+  background: var(--rs-surface);
+  box-shadow: var(--rs-shadow);
+}
+.settings-title { margin: 0 0 13px; font-size: 13px; font-weight: 800; letter-spacing: -.01em; }
+.settings-group + .settings-group { margin-top: 14px; }
+.settings-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--rs-faint);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.settings-seg {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--rs-border);
+  border-radius: 10px;
+  background: var(--rs-surface-2);
+}
+.settings-seg button {
+  flex: 1;
+  padding: 7px 5px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--rs-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.settings-seg button:hover { color: var(--rs-text); }
+.settings-seg button.on { background: var(--rs-surface); color: var(--rs-accent); box-shadow: var(--rs-shadow-sm); }
+.settings-btn:focus-visible, .settings-seg button:focus-visible { outline: 2px solid var(--rs-accent); outline-offset: 2px; }
