@@ -146,6 +146,7 @@ export function DocumentEditor({
   const [showReviewPanel, setShowReviewPanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [replacementText, setReplacementText] = useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
   const measurer = useMemo(() => {
@@ -225,8 +226,23 @@ export function DocumentEditor({
       const block = blocksById.get(range.start.blockId);
       if (block && isTextBlock(block)) setTypingStyle(styleAtOffset(block, range.start.offset));
     };
+    // Buscar y reemplazar existe en el panel de revisión, pero sin atajo nadie
+    // lo encuentra: Ctrl/Cmd+F y Ctrl/Cmd+H lo abren y enfocan la búsqueda.
+    const handleFindShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key !== "f" && key !== "h") return;
+      event.preventDefault();
+      setShowReviewPanel(true);
+      window.setTimeout(() => searchInputRef.current?.focus(), 0);
+    };
+    window.addEventListener("keydown", handleFindShortcut);
+
     document.addEventListener("selectionchange", handleSelectionChange);
-    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      window.removeEventListener("keydown", handleFindShortcut);
+    };
   }, [blocksById, documentModel]);
 
   useEffect(() => {
@@ -1000,7 +1016,7 @@ export function DocumentEditor({
             <button type="button" disabled={!documentModel.review.changes.some((change) => change.status === "pending")} onClick={() => commit({ type: "rejectAllChanges" })}>Rechazar todos</button>
           </div>
           <div className="review-columns">
-            <section className="review-section"><h3>Buscar y reemplazar</h3><div className="search-row"><input value={searchQuery} onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchQuery(event.target.value)} placeholder="Buscar en documento, encabezados y comentarios"/><input value={replacementText} onChange={(event: ChangeEvent<HTMLInputElement>) => setReplacementText(event.target.value)} placeholder="Reemplazar por"/><button type="button" onClick={replaceAllSearchMatches}>Reemplazar todo</button></div>{searchError ? <p className="review-error">{searchError}</p> : <small>{searchMatches.length} coincidencia(s)</small>}<div className="review-list search-results">{searchMatches.slice(0, 30).map((match) => <button type="button" key={match.id} onClick={() => match.start && match.end ? jumpToRange(match.start, match.end) : undefined}><strong>{match.scope}</strong><span>{match.preview}</span></button>)}</div></section>
+            <section className="review-section"><h3>Buscar y reemplazar</h3><div className="search-row"><input ref={searchInputRef} value={searchQuery} onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchQuery(event.target.value)} placeholder="Buscar en documento, encabezados y comentarios"/><input value={replacementText} onChange={(event: ChangeEvent<HTMLInputElement>) => setReplacementText(event.target.value)} placeholder="Reemplazar por"/><button type="button" onClick={replaceAllSearchMatches}>Reemplazar todo</button></div>{searchError ? <p className="review-error">{searchError}</p> : <small>{searchMatches.length} coincidencia(s)</small>}<div className="review-list search-results">{searchMatches.slice(0, 30).map((match) => <button type="button" key={match.id} onClick={() => match.start && match.end ? jumpToRange(match.start, match.end) : undefined}><strong>{match.scope}</strong><span>{match.preview}</span></button>)}</div></section>
             <section className="review-section"><h3>Comentarios</h3><div className="review-list">{documentModel.review.comments.map((thread) => <article key={thread.id} className={thread.resolved ? "resolved" : ""}><button type="button" className="review-anchor" onClick={() => jumpToRange(thread.range.start, thread.range.end)}>{thread.quote || "Selección"}</button>{thread.messages.map((message) => <p key={message.id}><strong>{message.author}</strong> {message.text}</p>)}<div><button type="button" onClick={() => commit({ type: "resolveComment", threadId: thread.id, resolved: !thread.resolved })}>{thread.resolved ? "Reabrir" : "Resolver"}</button><button type="button" onClick={() => commit({ type: "removeComment", threadId: thread.id })}>Eliminar</button></div></article>)}</div></section>
             <section className="review-section"><h3>Cambios</h3><div className="review-list">{[...documentModel.review.changes].reverse().map((change) => <article key={change.id} className={`change-${change.status}`}><p><strong>{change.author}</strong> · {change.summary}</p><small>{new Date(change.createdAt).toLocaleString()} · {change.status}</small>{change.status === "pending" ? <div><button type="button" onClick={() => commit({ type: "acceptChange", changeId: change.id })}>Aceptar</button><button type="button" onClick={() => commit({ type: "rejectChange", changeId: change.id })}>Rechazar</button></div> : null}</article>)}</div><h3>Marcadores</h3><div className="review-list bookmarks">{documentModel.review.bookmarks.map((bookmark) => <div key={bookmark.id}><button type="button" onClick={() => jumpToRange(bookmark.range.start, bookmark.range.end)}>{bookmark.name}</button><button type="button" onClick={() => commit({ type: "removeBookmark", bookmarkId: bookmark.id })}>×</button></div>)}</div></section>
           </div>

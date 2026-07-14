@@ -82,7 +82,10 @@ export function DriveView(props: DriveViewProps) {
   const [movingDoc, setMovingDoc] = useState<DriveEntry | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderDraft, setFolderDraft] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [anchorId, setAnchorId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const entries = catalog?.entries ?? [];
   const folders = catalog?.folders ?? [];
@@ -100,6 +103,57 @@ export function DriveView(props: DriveViewProps) {
       window.removeEventListener("keydown", onKey);
     };
   }, [menuFor]);
+
+  /**
+   * Atajos de la unidad. Se ignoran mientras se escribe en un campo, para no
+   * secuestrar teclas que el usuario está usando para escribir.
+   */
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing = target && (target.tagName === "INPUT" || target.tagName === "SELECT" || target.isContentEditable);
+
+      if (event.key === "Escape") {
+        if (typing && target?.tagName === "INPUT") (target as HTMLInputElement).blur();
+        clearSelection();
+        return;
+      }
+      if (typing) return;
+
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        setSelected(new Set(visibleDocs.map((entry) => entry.id)));
+        return;
+      }
+      if (!mod && (event.key === "/" || event.key === "f")) {
+        event.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      if (!mod && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        onCreate(section === "files" ? folderId : "");
+        return;
+      }
+      if (event.key === "Enter" && selected.size === 1) {
+        const entry = visibleDocs.find((item) => selected.has(item.id));
+        if (entry && !entry.trashed) { event.preventDefault(); onOpen(entry); }
+        return;
+      }
+      if ((event.key === "Delete" || event.key === "Backspace") && selected.size > 0) {
+        event.preventDefault();
+        const chosen = visibleDocs.filter((entry) => selected.has(entry.id));
+        for (const entry of chosen) {
+          if (entry.trashed) props.onRestore(entry);
+          else props.onTrash(entry);
+        }
+        clearSelection();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   // La carpeta actual solo aplica navegando "Mis archivos".
   const currentFolder = folders.find((folder) => folder.id === folderId) ?? null;
@@ -160,6 +214,50 @@ export function DriveView(props: DriveViewProps) {
     }
     return sorted;
   }, [entries, section, folderId, query, sort, lang]);
+
+  /**
+   * Selección al estilo de un explorador: clic elige uno, Ctrl/Cmd+clic añade o
+   * quita, y Mayús+clic toma el rango desde el último elegido.
+   */
+  const selectEntry = (entry: DriveEntry, event: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }) => {
+    const ids = visibleDocs.map((item) => item.id);
+    setSelected((current) => {
+      const next = new Set(current);
+      if (event.shiftKey && anchorId) {
+        const from = ids.indexOf(anchorId);
+        const to = ids.indexOf(entry.id);
+        if (from !== -1 && to !== -1) {
+          const [start, end] = from < to ? [from, to] : [to, from];
+          for (const id of ids.slice(start, end + 1)) next.add(id);
+          return next;
+        }
+      }
+      if (event.metaKey || event.ctrlKey) {
+        if (next.has(entry.id)) next.delete(entry.id);
+        else next.add(entry.id);
+        setAnchorId(entry.id);
+        return next;
+      }
+      setAnchorId(entry.id);
+      return next.has(entry.id) && next.size === 1 ? new Set() : new Set([entry.id]);
+    });
+  };
+
+  const selectedEntries = useMemo(
+    () => visibleDocs.filter((entry) => selected.has(entry.id)),
+    [visibleDocs, selected],
+  );
+
+  const clearSelection = () => { setSelected(new Set()); setAnchorId(null); };
+
+  // Al cambiar de sección, de carpeta o de búsqueda, la selección deja de tener
+  // sentido: apuntaría a documentos que ya no están a la vista.
+  useEffect(() => { clearSelection(); }, [section, folderId, query]);
+
+  const bulk = (action: (entry: DriveEntry) => void) => {
+    for (const entry of selectedEntries) action(entry);
+    clearSelection();
+  };
 
   const startRename = (entry: DriveEntry) => {
     setMenuFor(null);
@@ -352,6 +450,7 @@ export function DriveView(props: DriveViewProps) {
         <div className="drive-search">
           <span aria-hidden>🔍</span>
           <input
+            ref={searchRef}
             type="search"
             value={query}
             placeholder={t("searchPlaceholder")}
@@ -377,6 +476,36 @@ export function DriveView(props: DriveViewProps) {
           </div>
         </div>
       </div>
+
+      {selected.size > 0 ? (
+        <div className="bulk-bar" role="toolbar" aria-label={t("selectedCount", { n: selected.size })}>
+          <span className="bulk-count">{t("selectedCount", { n: selected.size })}</span>
+          <div className="bulk-actions">
+            {section === "trash" ? (
+              <>
+                <button type="button" onClick={() => bulk(props.onRestore)}>↺ {t("restore")}</button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    if (window.confirm(t("confirmEmptyTrash", { n: selectedEntries.length }))) bulk(props.onDeleteForever);
+                  }}
+                >🗑 {t("deleteForever")}</button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => bulk((entry) => props.onStar(entry, true))}>★ {t("star")}</button>
+                <button type="button" onClick={() => { setMovingDoc(selectedEntries[0] ?? null); }} disabled={selectedEntries.length !== 1}>
+                  📁 {t("moveTo")}
+                </button>
+                <button type="button" onClick={() => bulk((entry) => props.onDownload(entry, "docx"))}>↓ DOCX</button>
+                <button type="button" className="danger" onClick={() => bulk(props.onTrash)}>🗑 {t("sendToTrash")}</button>
+              </>
+            )}
+            <button type="button" className="bulk-clear" onClick={clearSelection}>✕ {t("clearSelection")}</button>
+          </div>
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="drive-empty"><div className="spinner" /><p>{t("loadingDrive")}</p></div>
@@ -478,7 +607,7 @@ export function DriveView(props: DriveViewProps) {
                   return (
                     <article
                       key={entry.id}
-                      className={`file-card ${draggingDocId === entry.id ? "dragging" : ""}`}
+                      className={`file-card ${draggingDocId === entry.id ? "dragging" : ""} ${selected.has(entry.id) ? "selected" : ""}`}
                       draggable={!inTrash}
                       onDragStart={(event) => {
                         setDraggingDocId(entry.id);
@@ -486,8 +615,14 @@ export function DriveView(props: DriveViewProps) {
                         event.dataTransfer.setData("text/plain", entry.id);
                       }}
                       onDragEnd={() => { setDraggingDocId(null); setDropFolderId(null); }}
+                      onClick={(event) => {
+                        // Los botones de la tarjeta tienen su propia acción.
+                        if ((event.target as HTMLElement).closest("button,input")) return;
+                        selectEntry(entry, event);
+                      }}
                       onContextMenu={(event) => {
                         event.preventDefault();
+                        if (!selected.has(entry.id)) setSelected(new Set([entry.id]));
                         setMenuFor(entry.id);
                         setMenuPoint({ x: event.clientX, y: event.clientY });
                       }}

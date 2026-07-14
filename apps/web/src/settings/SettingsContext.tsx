@@ -110,6 +110,21 @@ const es: Dict = {
   continueEditing: "Continuar",
   openNow: "abierto",
   inFolder: "en {name}",
+  selectedCount: "{n} seleccionados",
+  clearSelection: "Quitar selección",
+  selectAll: "Seleccionar todo",
+  shortcuts: "Atajos",
+  shortcutsTitle: "Atajos de teclado",
+  scOpen: "Abrir",
+  scSearch: "Buscar",
+  scSelectAll: "Seleccionar todo",
+  scTrash: "Enviar a la papelera",
+  scNew: "Nuevo documento",
+  scClose: "Cerrar o quitar selección",
+  scFind: "Buscar y reemplazar",
+  scSave: "Guardar",
+  inDrive: "En la unidad",
+  inEditor: "En el editor",
 };
 
 const en: Dict = {
@@ -214,6 +229,21 @@ const en: Dict = {
   continueEditing: "Continue",
   openNow: "open",
   inFolder: "in {name}",
+  selectedCount: "{n} selected",
+  clearSelection: "Clear selection",
+  selectAll: "Select all",
+  shortcuts: "Shortcuts",
+  shortcutsTitle: "Keyboard shortcuts",
+  scOpen: "Open",
+  scSearch: "Search",
+  scSelectAll: "Select all",
+  scTrash: "Move to trash",
+  scNew: "New document",
+  scClose: "Close or clear selection",
+  scFind: "Find and replace",
+  scSave: "Save",
+  inDrive: "In the drive",
+  inEditor: "In the editor",
 };
 
 const dictionaries: Record<Lang, Dict> = { es, en };
