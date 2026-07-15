@@ -1,4 +1,6 @@
 node_modules/
+# Caché de pnpm: aparece si se instala con el store dentro del repositorio.
+.pnpm-store/
 dist/
 release/
 coverage/
