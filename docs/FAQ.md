@@ -6,7 +6,7 @@ Decisiones de diseño de Rhino Suite, explicadas. Para el "qué" ver el [README]
 
 ### ¿Qué es exactamente Rhino Suite?
 
-Una suite ofimática (documentos, y en el futuro hojas de cálculo, presentaciones y PDF) construida desde cero, con un modelo documental propio en el centro. Hoy está en la **Fase 2.4**: el editor de documentos es funcional, con revisión, impresión e intercambio inicial DOCX/ODT.
+Una suite ofimática (documentos, y en el futuro hojas de cálculo, presentaciones y PDF) construida desde cero, con un modelo documental propio en el centro. Hoy está en la **Fase 2.5**: el editor de documentos es funcional —con revisión, impresión e intercambio DOCX/ODT— y vive dentro de una unidad de archivos con cuentas, carpetas, papelera, historial de versiones y compartición por permisos.
 
 ### ¿Está listo para producción?
 
