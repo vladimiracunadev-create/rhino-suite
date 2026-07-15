@@ -23,6 +23,16 @@ const HEALTH_URL = "/health";
 /** Dónde vive físicamente un documento del catálogo. */
 export type DriveLocation = "cloud" | "local" | "both";
 
+/** Qué puede hacer alguien con un documento que le han compartido. */
+export type ShareRole = "viewer" | "editor";
+
+export interface DocumentShare {
+  userId: string;
+  email: string;
+  name: string;
+  role: ShareRole;
+}
+
 export interface DriveFolder {
   id: string;
   name: string;
@@ -52,6 +62,11 @@ export interface DriveEntry {
   folderId: string;
   starred: boolean;
   trashed: boolean;
+  /** `true` si es tuyo; `false` si te lo han compartido. */
+  owned: boolean;
+  /** Lo que tú puedes hacer con él. */
+  role: ShareRole;
+  shares: DocumentShare[];
   /** Extracto y conteo, calculados al guardar y guardados junto al registro. */
   preview: string;
   wordCount: number;
@@ -74,6 +89,9 @@ interface CloudSummary {
   folderId: string;
   starred: boolean;
   trashedAt: string | null;
+  owned: boolean;
+  role: ShareRole;
+  shares: DocumentShare[];
   preview: string;
   wordCount: number;
   createdAt: string;
@@ -330,6 +348,28 @@ export async function restoreVersion(id: string, revision: number): Promise<Text
   return restored;
 }
 
+// ── Compartir ───────────────────────────────────────────────────────────────
+
+/** Comparte un documento con otra persona por su correo. */
+export async function shareDocument(id: string, email: string, role: ShareRole): Promise<void> {
+  await expectOk(
+    await fetch(`${DOCS_URL}/${encodeURIComponent(id)}/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    }),
+  );
+}
+
+/** Retira el acceso de alguien a un documento. */
+export async function unshareDocument(id: string, userId: string): Promise<void> {
+  const response = await fetch(
+    `${DOCS_URL}/${encodeURIComponent(id)}/share/${encodeURIComponent(userId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok && response.status !== 404) throw new Error(await readProblemDetail(response));
+}
+
 // ── Carpetas ────────────────────────────────────────────────────────────────
 
 /** Lista las carpetas de la unidad. */
@@ -445,6 +485,9 @@ export async function listDriveCatalog(): Promise<DriveCatalog> {
       folderId: summary.folderId ?? "",
       starred: Boolean(summary.starred),
       trashed: Boolean(summary.trashedAt),
+      owned: summary.owned !== false,
+      role: summary.role ?? "editor",
+      shares: summary.shares ?? [],
       preview: summary.preview ?? "",
       wordCount: summary.wordCount ?? 0,
       searchText: `${summary.title} ${summary.preview ?? ""}`.toLowerCase(),
@@ -469,6 +512,9 @@ export async function listDriveCatalog(): Promise<DriveCatalog> {
         folderId: "",
         starred: false,
         trashed: false,
+        owned: true,
+        role: "editor",
+        shares: [],
         ...derive(document),
       });
       continue;

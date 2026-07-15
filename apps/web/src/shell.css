@@ -725,3 +725,101 @@ body { background: var(--rs-bg); color: var(--rs-text); }
 .settings-seg button:hover { color: var(--rs-text); }
 .settings-seg button.on { background: var(--rs-surface); color: var(--rs-accent); box-shadow: var(--rs-shadow-sm); }
 .settings-btn:focus-visible, .settings-seg button:focus-visible { outline: 2px solid var(--rs-accent); outline-offset: 2px; }
+
+
+/* ============================================================================
+   Cuentas: entrada, chip de usuario y compartir
+   ========================================================================== */
+.signin { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--rs-bg); }
+.signin-card {
+  width: min(420px, 100%);
+  display: grid; gap: 14px;
+  padding: 28px;
+  border: 1px solid var(--rs-border); border-radius: 18px;
+  background: var(--rs-surface); box-shadow: var(--rs-shadow);
+}
+.signin-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 4px; }
+.signin-mark {
+  width: 52px; height: 52px; display: grid; place-items: center;
+  border-radius: 14px; color: #fff;
+  background: linear-gradient(135deg, var(--rs-accent), var(--rs-accent-2));
+  box-shadow: 0 10px 24px rgba(79, 70, 229, .35);
+}
+.signin-brand strong { display: block; font-size: 19px; letter-spacing: -.02em; }
+.signin-brand small { color: var(--rs-faint); font-size: 12px; }
+.signin-tabs { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--rs-border); border-radius: 10px; background: var(--rs-surface-2); }
+.signin-tabs button { flex: 1; padding: 9px; border: 0; border-radius: 8px; background: transparent; color: var(--rs-muted); font-size: 13px; font-weight: 600; }
+.signin-tabs button.on { background: var(--rs-surface); color: var(--rs-accent); box-shadow: var(--rs-shadow-sm); }
+.signin-field { display: grid; gap: 5px; }
+.signin-field > span { color: var(--rs-muted); font-size: 12px; font-weight: 600; }
+.signin-field input {
+  padding: 11px 13px; border: 1px solid var(--rs-border-strong); border-radius: 10px;
+  background: var(--rs-surface); color: var(--rs-text); font-size: 14px; outline: 0;
+}
+.signin-field input:focus { border-color: var(--rs-accent); box-shadow: 0 0 0 3px var(--rs-accent-soft); }
+.signin-field small { color: var(--rs-faint); font-size: 11px; }
+.signin-field small.warn { color: var(--rs-amber); }
+.signin-error {
+  margin: 0; padding: 9px 11px; border-radius: 9px;
+  background: color-mix(in srgb, var(--rs-red) 12%, var(--rs-surface));
+  color: var(--rs-red); font-size: 12.5px;
+}
+.signin-submit {
+  margin-top: 4px; padding: 12px; border: 0; border-radius: 11px;
+  background: linear-gradient(135deg, var(--rs-accent), var(--rs-accent-2));
+  color: #fff; font-size: 14px; font-weight: 700;
+  box-shadow: 0 8px 18px rgba(79, 70, 229, .28);
+}
+.signin-submit:disabled { opacity: .6; }
+.signin-foot { margin: 0; color: var(--rs-faint); font-size: 11.5px; text-align: center; }
+
+.rail-account {
+  display: flex; align-items: center; gap: 9px;
+  margin-top: auto; padding: 10px 8px;
+  border-top: 1px solid var(--rs-border);
+}
+.rail-avatar {
+  width: 30px; height: 30px; display: grid; place-items: center; flex: none;
+  border-radius: 50%; color: #fff; font-size: 12px; font-weight: 800;
+  background: linear-gradient(135deg, var(--rs-accent), var(--rs-accent-2));
+}
+.rail-account-who { display: grid; min-width: 0; flex: 1; }
+.rail-account-who strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-account-who small { color: var(--rs-faint); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-account button {
+  width: 28px; height: 28px; flex: none;
+  border: 0; border-radius: 8px; background: transparent; color: var(--rs-muted); font-size: 13px;
+}
+.rail-account button:hover { background: var(--rs-surface-2); color: var(--rs-red); }
+.rail-foot { margin-top: 0; }
+
+.loc-badge.shared { background: color-mix(in srgb, var(--rs-violet) 14%, var(--rs-surface)); color: var(--rs-violet); }
+.share-doc { margin: 0 0 14px; color: var(--rs-muted); font-size: 13px; }
+.share-field { display: grid; gap: 6px; }
+.share-field > span { color: var(--rs-muted); font-size: 12px; font-weight: 600; }
+.share-row { display: flex; gap: 6px; }
+.share-row input {
+  flex: 1; min-width: 0; padding: 9px 11px;
+  border: 1px solid var(--rs-border-strong); border-radius: 9px;
+  background: var(--rs-surface); color: var(--rs-text); font-size: 13px; outline: 0;
+}
+.share-row input:focus { border-color: var(--rs-accent); box-shadow: 0 0 0 3px var(--rs-accent-soft); }
+.share-row select {
+  padding: 9px; border: 1px solid var(--rs-border-strong); border-radius: 9px;
+  background: var(--rs-surface); color: var(--rs-text); font-size: 12.5px;
+}
+.share-section { margin: 18px 0 8px; color: var(--rs-faint); font-size: 10.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.share-empty { margin: 0; color: var(--rs-faint); font-size: 12.5px; }
+.share-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.share-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 11px; border: 1px solid var(--rs-border); border-radius: 9px;
+}
+.share-who { display: grid; min-width: 0; }
+.share-who strong { font-size: 12.5px; }
+.share-who small { color: var(--rs-faint); font-size: 11px; }
+.share-list li button {
+  padding: 5px 9px; border: 1px solid var(--rs-border-strong); border-radius: 7px;
+  background: var(--rs-surface); color: var(--rs-muted); font-size: 11.5px; font-weight: 600;
+}
+.share-list li button:hover { border-color: var(--rs-red); color: var(--rs-red); }

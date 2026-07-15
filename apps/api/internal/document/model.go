@@ -23,6 +23,10 @@ type Record struct {
 	FolderID  string     `json:"folderId"`
 	Starred   bool       `json:"starred"`
 	TrashedAt *time.Time `json:"trashedAt"`
+	// Quién es el dueño y con quién está compartido. Como los campos de
+	// organización, solo los cambian sus endpoints: guardar no los toca.
+	OwnerID string  `json:"ownerId"`
+	Shares  []Share `json:"shares"`
 	// Derivados del contenido que el catálogo necesita para pintar la lista.
 	// Se guardan aquí para poder listar sin devolver el documento entero.
 	Preview   string          `json:"preview"`
@@ -30,6 +34,44 @@ type Record struct {
 	CreatedAt time.Time       `json:"createdAt"`
 	UpdatedAt time.Time       `json:"updatedAt"`
 	Content   json.RawMessage `json:"content"`
+}
+
+// Role es lo que alguien puede hacer con un documento compartido.
+type Role string
+
+const (
+	RoleViewer Role = "viewer"
+	RoleEditor Role = "editor"
+)
+
+func (role Role) Valid() bool {
+	return role == RoleViewer || role == RoleEditor
+}
+
+// Share es el acceso concedido a otra persona.
+type Share struct {
+	UserID string `json:"userId"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	Role   Role   `json:"role"`
+}
+
+// Access resuelve qué puede hacer un usuario con este documento.
+func (record Record) Access(userID string) (canRead bool, canWrite bool) {
+	// Sin dueño: documento heredado de antes de que existieran las cuentas.
+	// Lo reclama la primera cuenta que se crea, no cualquiera que pase.
+	if record.OwnerID == "" {
+		return false, false
+	}
+	if record.OwnerID == userID {
+		return true, true
+	}
+	for _, share := range record.Shares {
+		if share.UserID == userID {
+			return true, share.Role == RoleEditor
+		}
+	}
+	return false, false
 }
 
 // Summary es el registro sin el contenido. Es lo que devuelve el listado: una
@@ -44,13 +86,27 @@ type Summary struct {
 	FolderID  string     `json:"folderId"`
 	Starred   bool       `json:"starred"`
 	TrashedAt *time.Time `json:"trashedAt"`
-	Preview   string     `json:"preview"`
-	WordCount int        `json:"wordCount"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
+	OwnerID   string     `json:"ownerId"`
+	Shares    []Share    `json:"shares"`
+	// Owned dice si el catálogo lo lista por ser tuyo o por compartido.
+	Owned     bool      `json:"owned"`
+	Role      Role      `json:"role"`
+	Preview   string    `json:"preview"`
+	WordCount int       `json:"wordCount"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-func (record Record) Summary() Summary {
+func (record Record) SummaryFor(userID string) Summary {
+	_, canWrite := record.Access(userID)
+	role := RoleViewer
+	if canWrite {
+		role = RoleEditor
+	}
+	shares := record.Shares
+	if shares == nil {
+		shares = []Share{}
+	}
 	return Summary{
 		ID:        record.ID,
 		Title:     record.Title,
@@ -60,6 +116,10 @@ func (record Record) Summary() Summary {
 		FolderID:  record.FolderID,
 		Starred:   record.Starred,
 		TrashedAt: record.TrashedAt,
+		OwnerID:   record.OwnerID,
+		Shares:    shares,
+		Owned:     record.OwnerID == userID,
+		Role:      role,
 		Preview:   record.Preview,
 		WordCount: record.WordCount,
 		CreatedAt: record.CreatedAt,
@@ -99,6 +159,7 @@ type Folder struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	ParentID  string     `json:"parentId"`
+	OwnerID   string     `json:"ownerId"`
 	TrashedAt *time.Time `json:"trashedAt"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`

@@ -10,20 +10,27 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/auth"
 	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/document"
 	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/httpapi"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	store, err := document.NewFileStore(environment("DATA_DIR", "./apps/api/data"))
+	dataDir := environment("DATA_DIR", "./apps/api/data")
+	store, err := document.NewFileStore(dataDir)
 	if err != nil {
 		logger.Error("could not initialize document store", "error", err)
 		os.Exit(1)
 	}
+	accounts, err := auth.NewFileStore(dataDir)
+	if err != nil {
+		logger.Error("could not initialize account store", "error", err)
+		os.Exit(1)
+	}
 	server := &http.Server{
 		Addr:              ":" + environment("PORT", "8080"),
-		Handler:           httpapi.New(store, logger, environment("WEB_ORIGIN", "http://localhost:5173")),
+		Handler:           httpapi.New(store, accounts, logger, environment("WEB_ORIGIN", "http://localhost:5173")),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       20 * time.Second,
 		WriteTimeout:      30 * time.Second,

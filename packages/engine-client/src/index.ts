@@ -4,6 +4,7 @@ export * from "./model";
 export * from "./selection";
 export * from "./storage";
 export * from "./drive";
+export * from "./accounts";
 export * from "./search";
 export * from "./formats";
 export * from "./zip";

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/auth"
 	"github.com/vladimiracunadev-create/rhino-suite/apps/api/internal/document"
 )
 
@@ -20,14 +22,25 @@ const maxBodyBytes = 10 << 20
 
 type Handler struct {
 	store     document.Store
+	accounts  auth.Store
 	logger    *slog.Logger
 	webOrigin string
 }
 
-func New(store document.Store, logger *slog.Logger, webOrigin string) http.Handler {
-	handler := &Handler{store: store, logger: logger, webOrigin: webOrigin}
+func New(store document.Store, accounts auth.Store, logger *slog.Logger, webOrigin string) http.Handler {
+	handler := &Handler{store: store, accounts: accounts, logger: logger, webOrigin: webOrigin}
+
+	// Público: salud y las puertas de entrada.
+	public := http.NewServeMux()
+	public.HandleFunc("GET /health", handler.health)
+	public.HandleFunc("POST /api/v1/auth/register", handler.register)
+	public.HandleFunc("POST /api/v1/auth/login", handler.login)
+	public.HandleFunc("POST /api/v1/auth/logout", handler.logout)
+
+	// Todo lo demás exige sesión. Al estar la comprobación en un único sitio,
+	// ningún endpoint puede quedarse sin ella por descuido.
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handler.health)
+	mux.HandleFunc("GET /api/v1/auth/me", handler.currentUser)
 	mux.HandleFunc("GET /api/v1/documents", handler.listDocuments)
 	mux.HandleFunc("POST /api/v1/documents", handler.createDocument)
 	mux.HandleFunc("GET /api/v1/documents/{id}", handler.getDocument)
@@ -44,7 +57,11 @@ func New(store document.Store, logger *slog.Logger, webOrigin string) http.Handl
 	mux.HandleFunc("POST /api/v1/folders", handler.createFolder)
 	mux.HandleFunc("PUT /api/v1/folders/{id}", handler.updateFolder)
 	mux.HandleFunc("DELETE /api/v1/folders/{id}", handler.deleteFolder)
-	return handler.recover(handler.cors(handler.logging(mux)))
+	mux.HandleFunc("POST /api/v1/documents/{id}/share", handler.shareDocument)
+	mux.HandleFunc("DELETE /api/v1/documents/{id}/share/{userId}", handler.unshareDocument)
+
+	public.Handle("/", handler.requireUser(mux))
+	return handler.recover(handler.cors(handler.logging(public)))
 }
 
 func (handler *Handler) health(writer http.ResponseWriter, _ *http.Request) {
@@ -61,13 +78,75 @@ func (handler *Handler) listDocuments(writer http.ResponseWriter, request *http.
 		handler.internalError(writer, request, err)
 		return
 	}
+	user, _ := userFrom(request)
 	// Sin contenido: el catálogo se pinta con el extracto y el conteo guardados.
-	// El documento completo se pide al abrirlo.
+	// El documento completo se pide al abrirlo. Y solo lo que este usuario puede
+	// ver: lo suyo y lo que le han compartido.
 	summaries := make([]document.Summary, 0, len(records))
 	for _, record := range records {
-		summaries = append(summaries, record.Summary())
+		if canRead, _ := record.Access(user.ID); !canRead {
+			continue
+		}
+		summaries = append(summaries, record.SummaryFor(user.ID))
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"items": summaries})
+}
+
+// claimOrphans da dueño a lo que se creó antes de que existieran las cuentas.
+func (handler *Handler) claimOrphans(ctx context.Context, userID string) error {
+	records, err := handler.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, record := range records {
+		if record.OwnerID != "" {
+			continue
+		}
+		record.OwnerID = userID
+		if err := handler.store.Put(ctx, record); err != nil {
+			return err
+		}
+	}
+	folders, err := handler.store.ListFolders(ctx)
+	if err != nil {
+		return err
+	}
+	for _, folder := range folders {
+		if folder.OwnerID != "" {
+			continue
+		}
+		folder.OwnerID = userID
+		if err := handler.store.PutFolder(ctx, folder); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// documentFor carga un documento comprobando el permiso. Devolver 404 en vez de
+// 403 cuando no hay acceso evita confirmar que un documento existe a quien no
+// debería saberlo.
+func (handler *Handler) documentFor(writer http.ResponseWriter, request *http.Request, needWrite bool) (document.Record, bool) {
+	user, _ := userFrom(request)
+	record, err := handler.store.Get(request.Context(), request.PathValue("id"))
+	if errors.Is(err, document.ErrNotFound) {
+		writeProblem(writer, http.StatusNotFound, "Documento no encontrado.")
+		return document.Record{}, false
+	}
+	if err != nil {
+		handler.internalError(writer, request, err)
+		return document.Record{}, false
+	}
+	canRead, canWrite := record.Access(user.ID)
+	if !canRead {
+		writeProblem(writer, http.StatusNotFound, "Documento no encontrado.")
+		return document.Record{}, false
+	}
+	if needWrite && !canWrite {
+		writeProblem(writer, http.StatusForbidden, "Solo puedes leer este documento.")
+		return document.Record{}, false
+	}
+	return record, true
 }
 
 func (handler *Handler) createDocument(writer http.ResponseWriter, request *http.Request) {
@@ -82,13 +161,22 @@ func (handler *Handler) createDocument(writer http.ResponseWriter, request *http
 	}
 	// Si el documento ya existe, su organización (carpeta, destacado, papelera)
 	// se conserva: solo la cambian los endpoints de acción.
+	user, _ := userFrom(request)
 	if existing, err := handler.store.Get(request.Context(), input.ID); err == nil {
+		// Ya existe: solo quien pueda escribirlo puede sobrescribirlo.
+		if _, canWrite := existing.Access(user.ID); !canWrite {
+			writeProblem(writer, http.StatusForbidden, "No puedes escribir en ese documento.")
+			return
+		}
 		input.CreatedAt = existing.CreatedAt
 		input.FolderID = existing.FolderID
 		input.Starred = existing.Starred
 		input.TrashedAt = existing.TrashedAt
+		input.OwnerID = existing.OwnerID
+		input.Shares = existing.Shares
 	} else {
 		input.CreatedAt = now
+		input.OwnerID = user.ID
 	}
 	input.UpdatedAt = now
 	if err := handler.store.Put(request.Context(), input); err != nil {
@@ -100,13 +188,8 @@ func (handler *Handler) createDocument(writer http.ResponseWriter, request *http
 }
 
 func (handler *Handler) getDocument(writer http.ResponseWriter, request *http.Request) {
-	record, err := handler.store.Get(request.Context(), request.PathValue("id"))
-	if errors.Is(err, document.ErrNotFound) {
-		writeProblem(writer, http.StatusNotFound, "Documento no encontrado.")
-		return
-	}
-	if err != nil {
-		handler.internalError(writer, request, err)
+	record, ok := handler.documentFor(writer, request, false)
+	if !ok {
 		return
 	}
 	writeJSON(writer, http.StatusOK, record)
@@ -114,13 +197,8 @@ func (handler *Handler) getDocument(writer http.ResponseWriter, request *http.Re
 
 func (handler *Handler) updateDocument(writer http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	existing, err := handler.store.Get(request.Context(), id)
-	if errors.Is(err, document.ErrNotFound) {
-		writeProblem(writer, http.StatusNotFound, "Documento no encontrado.")
-		return
-	}
-	if err != nil {
-		handler.internalError(writer, request, err)
+	existing, ok := handler.documentFor(writer, request, true)
+	if !ok {
 		return
 	}
 	var input document.Record
@@ -133,6 +211,8 @@ func (handler *Handler) updateDocument(writer http.ResponseWriter, request *http
 	input.FolderID = existing.FolderID
 	input.Starred = existing.Starred
 	input.TrashedAt = existing.TrashedAt
+	input.OwnerID = existing.OwnerID
+	input.Shares = existing.Shares
 	input.UpdatedAt = time.Now().UTC()
 	if input.Revision <= existing.Revision {
 		writeProblem(writer, http.StatusConflict, "La revisión debe ser mayor que la almacenada.")
@@ -146,12 +226,18 @@ func (handler *Handler) updateDocument(writer http.ResponseWriter, request *http
 }
 
 func (handler *Handler) deleteDocument(writer http.ResponseWriter, request *http.Request) {
-	err := handler.store.Delete(request.Context(), request.PathValue("id"))
-	if errors.Is(err, document.ErrNotFound) {
-		writeProblem(writer, http.StatusNotFound, "Documento no encontrado.")
+	record, ok := handler.documentFor(writer, request, true)
+	if !ok {
 		return
 	}
-	if err != nil {
+	user, _ := userFrom(request)
+	// Borrar para siempre es cosa del dueño: a quien se lo compartieron no
+	// puede destruir el original de otro.
+	if record.OwnerID != user.ID {
+		writeProblem(writer, http.StatusForbidden, "Solo quien creó el documento puede eliminarlo.")
+		return
+	}
+	if err := handler.store.Delete(request.Context(), record.ID); err != nil {
 		handler.internalError(writer, request, err)
 		return
 	}
@@ -162,16 +248,7 @@ func (handler *Handler) deleteDocument(writer http.ResponseWriter, request *http
 // Cambian solo metadatos, así que no exigen elevar la revisión del documento.
 
 func (handler *Handler) loadDocument(writer http.ResponseWriter, request *http.Request) (document.Record, bool) {
-	record, err := handler.store.Get(request.Context(), request.PathValue("id"))
-	if errors.Is(err, document.ErrNotFound) {
-		writeProblem(writer, http.StatusNotFound, "Documento no encontrado.")
-		return document.Record{}, false
-	}
-	if err != nil {
-		handler.internalError(writer, request, err)
-		return document.Record{}, false
-	}
-	return record, true
+	return handler.documentFor(writer, request, true)
 }
 
 // saveDocument persiste cambios de organización. No toca UpdatedAt: esa fecha
@@ -197,8 +274,7 @@ func (handler *Handler) moveDocument(writer http.ResponseWriter, request *http.R
 		return
 	}
 	if input.FolderID != document.Root {
-		if _, err := handler.store.GetFolder(request.Context(), input.FolderID); err != nil {
-			writeProblem(writer, http.StatusNotFound, "La carpeta de destino no existe.")
+		if _, ok := handler.folderFor(writer, request, input.FolderID); !ok {
 			return
 		}
 	}
@@ -316,11 +392,37 @@ func (handler *Handler) restoreVersion(writer http.ResponseWriter, request *http
 
 // ── Carpetas ────────────────────────────────────────────────────────────────
 
+// folderFor carga una carpeta comprobando que sea de quien pregunta.
+func (handler *Handler) folderFor(writer http.ResponseWriter, request *http.Request, id string) (document.Folder, bool) {
+	user, _ := userFrom(request)
+	folder, err := handler.store.GetFolder(request.Context(), id)
+	if errors.Is(err, document.ErrNotFound) {
+		writeProblem(writer, http.StatusNotFound, "Carpeta no encontrada.")
+		return document.Folder{}, false
+	}
+	if err != nil {
+		handler.internalError(writer, request, err)
+		return document.Folder{}, false
+	}
+	if folder.OwnerID != user.ID {
+		writeProblem(writer, http.StatusNotFound, "Carpeta no encontrada.")
+		return document.Folder{}, false
+	}
+	return folder, true
+}
+
 func (handler *Handler) listFolders(writer http.ResponseWriter, request *http.Request) {
-	folders, err := handler.store.ListFolders(request.Context())
+	all, err := handler.store.ListFolders(request.Context())
 	if err != nil {
 		handler.internalError(writer, request, err)
 		return
+	}
+	user, _ := userFrom(request)
+	folders := make([]document.Folder, 0, len(all))
+	for _, folder := range all {
+		if folder.OwnerID == user.ID {
+			folders = append(folders, folder)
+		}
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"items": folders})
 }
@@ -335,12 +437,13 @@ func (handler *Handler) createFolder(writer http.ResponseWriter, request *http.R
 		input.ID = "folder-" + randomHex()
 	}
 	if input.ParentID != document.Root {
-		if _, err := handler.store.GetFolder(request.Context(), input.ParentID); err != nil {
-			writeProblem(writer, http.StatusNotFound, "La carpeta padre no existe.")
+		if _, ok := handler.folderFor(writer, request, input.ParentID); !ok {
 			return
 		}
 	}
+	user, _ := userFrom(request)
 	now := time.Now().UTC()
+	input.OwnerID = user.ID
 	input.CreatedAt = now
 	input.UpdatedAt = now
 	if err := handler.store.PutFolder(request.Context(), input); err != nil {
@@ -353,13 +456,8 @@ func (handler *Handler) createFolder(writer http.ResponseWriter, request *http.R
 
 func (handler *Handler) updateFolder(writer http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	existing, err := handler.store.GetFolder(request.Context(), id)
-	if errors.Is(err, document.ErrNotFound) {
-		writeProblem(writer, http.StatusNotFound, "Carpeta no encontrada.")
-		return
-	}
-	if err != nil {
-		handler.internalError(writer, request, err)
+	existing, ok := handler.folderFor(writer, request, id)
+	if !ok {
 		return
 	}
 	var input document.Folder
@@ -368,6 +466,7 @@ func (handler *Handler) updateFolder(writer http.ResponseWriter, request *http.R
 		return
 	}
 	input.ID = id
+	input.OwnerID = existing.OwnerID
 	input.CreatedAt = existing.CreatedAt
 	input.UpdatedAt = time.Now().UTC()
 	if input.ParentID != document.Root {
@@ -391,13 +490,8 @@ func (handler *Handler) updateFolder(writer http.ResponseWriter, request *http.R
 // contenía vuelven a la raíz y sus subcarpetas suben a la carpeta padre.
 func (handler *Handler) deleteFolder(writer http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	folder, err := handler.store.GetFolder(request.Context(), id)
-	if errors.Is(err, document.ErrNotFound) {
-		writeProblem(writer, http.StatusNotFound, "Carpeta no encontrada.")
-		return
-	}
-	if err != nil {
-		handler.internalError(writer, request, err)
+	folder, ok := handler.folderFor(writer, request, id)
+	if !ok {
 		return
 	}
 
@@ -445,6 +539,10 @@ func (handler *Handler) deleteFolder(writer http.ResponseWriter, request *http.R
 func (handler *Handler) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Access-Control-Allow-Origin", handler.webOrigin)
+		// La sesión viaja en una cookie, así que el navegador solo la mandará
+		// entre orígenes si se permite explícitamente. Va con un origen concreto,
+		// nunca con "*": ambos a la vez no son válidos, y con razón.
+		writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		writer.Header().Set("Vary", "Origin")

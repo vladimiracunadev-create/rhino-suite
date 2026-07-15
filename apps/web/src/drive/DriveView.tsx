@@ -29,6 +29,7 @@ interface DriveViewProps {
   onRenameFolder: (folder: DriveFolder, name: string) => void;
   onDeleteFolder: (folder: DriveFolder) => void;
   onUpload: (files: FileList | File[], folderId: string) => void;
+  onShare: (entry: DriveEntry) => void;
   onRefresh: () => void;
   onSyncAll: () => void;
   /** Documento abierto ahora mismo en el editor, si lo hay. */
@@ -656,6 +657,8 @@ export function DriveView(props: DriveViewProps) {
                         )}
                         <div className="file-meta">
                           {props.openDocumentId === entry.id ? <span className="loc-badge open">● {t("openNow")}</span> : null}
+                          {!entry.owned ? <span className="loc-badge shared">👥 {t("sharedByOther")}</span> : null}
+                          {!entry.owned && entry.role === "viewer" ? <span className="loc-badge">{t("readOnly")}</span> : null}
                           <span className={`loc-badge ${badge.tone}`}>{badge.icon} {badge.text}</span>
                           {entry.outOfSync ? <span className="loc-badge warn">⚠ {t("localChanges")}</span> : null}
                           {section !== "files" && entry.folderId && folderName(entry.folderId) ? (
@@ -710,6 +713,9 @@ export function DriveView(props: DriveViewProps) {
                                     style={menuPoint ? { position: "fixed", left: menuPoint.x, top: menuPoint.y, right: "auto", bottom: "auto" } : undefined}
                                   >
                                     <button type="button" onClick={() => startRename(entry)}>✎ {t("rename")}</button>
+                                    <button type="button" onClick={() => { setMenuFor(null); props.onShare(entry); }}>
+                                      👥 {t("share")}
+                                    </button>
                                     <button type="button" onClick={() => { setMenuFor(null); setMovingDoc(entry); }}>
                                       📁 {t("moveTo")}
                                     </button>

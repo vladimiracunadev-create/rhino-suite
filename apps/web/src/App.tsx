@@ -32,6 +32,9 @@ import { RhinoMark } from "./branding/RhinoMark";
 import { SettingsControl } from "./settings/SettingsControl";
 import { useSettings } from "./settings/SettingsContext";
 import { parsePath, routeToPath, routesEqual, type DriveSection, type Route } from "./routing";
+import { SignInScreen } from "./auth/SignInScreen";
+import { ShareDialog } from "./drive/ShareDialog";
+import { currentAccount, logout, type Account } from "@web-office/engine-client";
 
 type SaveState = "saved" | "saving" | "dirty" | "local-only";
 
@@ -72,6 +75,9 @@ export function App() {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [engineKind, setEngineKind] = useState<OfficeEngineClient["kind"]>("typescript-fallback");
   const [showHistory, setShowHistory] = useState(false);
+  const [account, setAccount] = useState<Account | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [sharing, setSharing] = useState<DriveEntry | null>(null);
 
   const refreshCatalog = useCallback(async () => {
     setDriveLoading(true);
@@ -95,8 +101,15 @@ export function App() {
     });
   }, []);
 
+  // Primero se mira si hay sesión: sin ella la API no responde nada, así que
+  // pedir el catálogo antes solo daría un 401.
   useEffect(() => {
-    void refreshCatalog();
+    void (async () => {
+      const session = await currentAccount();
+      setAccount(session);
+      setCheckingSession(false);
+      if (session) void refreshCatalog();
+    })();
     const onPopState = () => setRoute(parsePath(window.location.pathname));
     window.addEventListener("popstate", onPopState);
     return () => {
@@ -104,6 +117,22 @@ export function App() {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };
   }, [refreshCatalog]);
+
+  const signedIn = useCallback((session: Account) => {
+    setAccount(session);
+    void refreshCatalog();
+  }, [refreshCatalog]);
+
+  const signOut = useCallback(async () => {
+    await logout();
+    // Se limpia todo lo que había en pantalla: cerrar sesión no puede dejar a la
+    // vista el documento de quien acaba de salir.
+    setAccount(null);
+    setCatalog(null);
+    setDocumentModel(null);
+    engineRef.current = null;
+    navigate({ view: "drive", section: "recent", folderId: "" }, true);
+  }, [navigate]);
 
   const activateEngine = useCallback((engine: OfficeEngineClient, replaceUrl = false) => {
     engineRef.current = engine;
@@ -363,6 +392,18 @@ export function App() {
 
   const cloudOnline = catalog?.cloudOnline ?? false;
 
+  if (checkingSession) {
+    return <div className="drive-empty"><div className="spinner" /></div>;
+  }
+  if (!account) {
+    return (
+      <>
+        <SignInScreen onSignedIn={signedIn} />
+        <SettingsControl />
+      </>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className="rail">
@@ -423,6 +464,14 @@ export function App() {
           ))}
         </div>
 
+        <div className="rail-account">
+          <span className="rail-avatar" aria-hidden>{(account.name || account.email).charAt(0).toUpperCase()}</span>
+          <span className="rail-account-who">
+            <strong>{account.name || account.email}</strong>
+            <small>{account.email}</small>
+          </span>
+          <button type="button" title={t("signOut")} onClick={() => void signOut()}>⎋</button>
+        </div>
         <div className="rail-foot">
           <span className={`status-dot ${cloudOnline ? "online" : "offline"}`} />
           {cloudOnline ? t("cloudConnected") : t("cloudOffline")}
@@ -452,6 +501,7 @@ export function App() {
             onRenameFolder={renameFolderFromDrive}
             onDeleteFolder={deleteFolderFromDrive}
             onUpload={(files, folderId) => void uploadToDrive(files, folderId)}
+            onShare={(entry) => setSharing(entry)}
             openDocumentId={documentModel?.metadata.id ?? null}
             onRefresh={() => void refreshCatalog()}
             onSyncAll={() => void syncAll()}
@@ -523,6 +573,15 @@ export function App() {
           </div>
         )}
       </main>
+
+      {sharing ? (
+        <ShareDialog
+          entry={sharing}
+          onClose={() => setSharing(null)}
+          onChanged={() => { void refreshCatalog(); setSharing(null); }}
+          onMessage={setMessage}
+        />
+      ) : null}
 
       <SettingsControl />
     </div>
