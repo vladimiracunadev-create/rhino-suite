@@ -37,8 +37,8 @@ func (handler *Handler) setSessionCookie(writer http.ResponseWriter, request *ht
 		SameSite: http.SameSiteLaxMode,
 		// Secure solo si se sirve por HTTPS: en http://localhost una cookie
 		// Secure no llegaría nunca y no se podría entrar.
-		Secure:   request.TLS != nil,
-		MaxAge:   int(auth.SessionLifetime.Seconds()),
+		Secure: request.TLS != nil,
+		MaxAge: int(auth.SessionLifetime.Seconds()),
 	})
 }
 

@@ -71,12 +71,13 @@ Registro cronológico de decisiones técnicas irreversibles o de alto impacto:
 - [0006 — Fragmentos y recursos estructurados](adr/0006-structured-fragments-and-resources.md)
 - [0007 — Layout consciente de secciones](adr/0007-section-aware-layout.md)
 - [0008 — Revisión e intercambio Office](adr/0008-review-and-office-interchange.md)
+- [0009 — Cuentas, sesión y compartición](adr/0009-accounts-and-sharing.md)
 
 ## Convención de estado
 
 En toda la documentación distinguimos dos tipos de referencia a la versión/fase:
 
-- **Marcador de estado actual** (se sincroniza con cada release): *"Fase 2.4"*, *"schema v5"*, `0.6.0-phase.2.4`.
+- **Marcador de estado actual** (se sincroniza con cada release): *"Fase 2.5"*, *"schema v5"*, `0.7.0-phase.2.5`.
 - **Referencia histórica** (se conserva): entradas del [CHANGELOG](../CHANGELOG.md) y de los ADR, que documentan lo que era cierto en su momento.
 
 Si editas un documento y encuentras un número de estado desactualizado, corrígelo; si es una referencia histórica, consérvala.

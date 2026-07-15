@@ -10,7 +10,7 @@ Una suite ofimática (documentos, y en el futuro hojas de cálculo, presentacion
 
 ### ¿Está listo para producción?
 
-No. Es un proyecto **evolutivo por fases** y un entorno de desarrollo. La API no tiene autenticación y no debe exponerse a Internet. Ver [SECURITY.md](../SECURITY.md).
+No. Es un proyecto **evolutivo por fases** y un entorno de desarrollo. Desde la Fase 2.5 la API sí tiene cuentas y aislamiento por usuario, pero le faltan piezas que un servicio expuesto necesita (recuperación de contraseña, verificación de correo, limitación de intentos, HTTPS), así que no debe exponerse a Internet tal cual. Ver [SECURITY.md](../SECURITY.md).
 
 ### ¿Por qué "evolutivo por fases"?
 
@@ -32,7 +32,7 @@ No. `pnpm dev` usa el motor TypeScript de respaldo si no hay artefacto WASM. Ins
 
 ### ¿Por qué Go para la API y no Node o Rust?
 
-Un servicio pequeño, sin dependencias externas, con almacenamiento atómico y un contrato `Store` que podrá cambiar disco por PostgreSQL/objetos sin tocar los handlers. Ver [ADR 0002](adr/0002-go-services.md).
+Un servicio pequeño, con una sola dependencia externa (`golang.org/x/crypto`, para Argon2id), almacenamiento atómico y un contrato `Store` que podrá cambiar disco por PostgreSQL/objetos sin tocar los handlers. Ver [ADR 0002](adr/0002-go-services.md) y [ADR 0009](adr/0009-accounts-and-sharing.md).
 
 ### ¿Por qué un portapapeles propio en lugar de HTML del sistema?
 

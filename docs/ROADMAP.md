@@ -17,13 +17,23 @@ El roadmap se divide en ocho fases. Cada fase tiene un objetivo, entregables mí
 | Fase | Producto | Estado |
 |---|---|---|
 | 1 | Plataforma y núcleo común | Completada |
-| 2 | Editor de documentos | Completada — 2.4 entregada |
-| 3 | Hojas de cálculo | Planificada |
+| 2 | Editor de documentos | Completada — 2.5 entregada |
+| 3 | Hojas de cálculo | Siguiente |
 | 4 | Presentaciones | Planificada |
 | 5 | PDF | Planificada |
-| 6 | Colaboración | Planificada |
+| 6 | Colaboración en tiempo real | Planificada (reducida: ver 2.5) |
 | 7 | Aplicación de escritorio | Planificada |
 | 8 | Compatibilidad y endurecimiento | Planificada |
+
+### Subfases entregadas de la Fase 2
+
+| Subfase | Entrega |
+|---|---|
+| 2.1–2.3 | Modelo estructurado, edición rica, secciones y composición |
+| 2.4 | Revisión, búsqueda, impresión e intercambio DOCX/ODT |
+| **2.5** | **Unidad de archivos, cuentas y compartición** |
+
+> **Nota de orden.** La 2.5 nació de usar el producto, no del plan: sin un sitio donde encontrar los documentos ni cuentas que los separen, el editor no era utilizable de verdad. Al hacerla se adelantó la compartición con permisos, que estaba en la Fase 6; esa fase queda ahora acotada a la colaboración en tiempo real.
 
 ---
 
@@ -116,6 +126,43 @@ Un documento extenso debe poder editarse, paginarse, imprimirse, revisarse, guar
 
 ---
 
+## Fase 2.5 — Unidad de archivos, cuentas y compartición
+
+### Objetivo
+
+Convertir el editor en un producto usable: un sitio donde encontrar los
+documentos, cuentas que los separen y una forma de compartirlos.
+
+### Entregables
+
+- **Unidad de archivos**: carpetas con navegación por ruta, recientes,
+  destacados, papelera con restauración, búsqueda, orden, selección múltiple con
+  acciones en lote, arrastrar a carpetas y subida de DOCX/ODT.
+- **Cuentas**: alta y entrada con correo y contraseña (Argon2id, sal por
+  contraseña, comparación en tiempo constante), sesión en cookie HttpOnly de la
+  que solo se guarda el hash del token.
+- **Aislamiento**: cada documento y carpeta tiene dueño; pedir uno ajeno
+  responde 404, no 403, porque un 403 confirmaría que existe.
+- **Compartición** por correo con permiso de lectura o edición. Solo el dueño
+  reparte acceso y solo él puede eliminar.
+- **Historial de versiones**: instantánea por guardado (tope de 40) y
+  restauración que no destruye lo anterior.
+- **Una URL por documento**: recargar, compartir por enlace y botón atrás.
+- **Rendimiento**: el catálogo se lista con metadatos; el contenido solo se pide
+  al abrir un documento.
+- Tema claro/oscuro e idioma español/inglés.
+
+### Puerta de salida
+
+Dos cuentas distintas no ven los documentos de la otra; compartir concede el
+acceso exactamente del permiso concedido; y recargar sobre la URL de un
+documento devuelve a ese documento.
+
+**Estado:** completada. Verificado con pruebas de aislamiento y de permisos en
+`apps/api/internal/httpapi`.
+
+---
+
 ## Fase 3 — Hojas de cálculo
 
 ### Objetivo
@@ -193,11 +240,16 @@ Los archivos de prueba deben abrirse, renderizarse y guardarse con validación e
 
 ---
 
-## Fase 6 — Colaboración
+## Fase 6 — Colaboración en tiempo real
 
 ### Objetivo
 
-Agregar edición concurrente, presencia y sincronización offline sobre los modelos estabilizados.
+Agregar edición concurrente y presencia sobre los modelos estabilizados.
+
+> **Alcance reducido.** Las cuentas, los permisos y el historial de versiones ya
+> se entregaron en la Fase 2.5, junto con la unidad de archivos que los
+> necesitaba. Aquí queda lo que de verdad es difícil: que dos personas escriban
+> a la vez sin pisarse.
 
 ### Subfases
 
@@ -205,9 +257,14 @@ Agregar edición concurrente, presencia y sincronización offline sobre los mode
 - CRDT por tipo de documento.
 - WebSocket y recuperación de sesión.
 - Presencia, cursores y selección remota.
-- Comentarios, menciones y permisos.
+- Menciones en comentarios.
 - Cola offline, reconciliación y snapshots.
-- Historial de versiones y auditoría.
+
+### Ya entregado en la Fase 2.5
+
+- Permisos de lectura y edición por documento.
+- Historial de versiones con restauración.
+- Cola local offline (IndexedDB) con sincronización manual a la nube.
 
 ### Puerta de salida
 

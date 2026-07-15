@@ -93,7 +93,7 @@ pnpm test:go          # solo Go
 pnpm test:rust        # solo Rust (cargo test --workspace)
 pnpm typecheck        # typecheck de todo el workspace TS
 
-# Smoke test de la Fase 2.4 (20 aserciones, sin dependencias externas)
+# Smoke test del editor (20 aserciones, sin dependencias externas)
 npx tsx scripts/validate-phase24.ts
 
 # Puertas completas (equivalente a lo que corre el CI)

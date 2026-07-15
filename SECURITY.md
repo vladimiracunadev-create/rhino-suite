@@ -4,7 +4,7 @@ Rhino Suite es todavía un **entorno de desarrollo por fases** y no debe exponer
 
 ## Alcance y estado
 
-- La API Go **aún no implementa autenticación**. Está pensada para uso local.
+- La API Go **exige sesión** en todo salvo `/health` y las rutas de alta y entrada. Las contraseñas se derivan con Argon2id (sal por contraseña, comparación en tiempo constante) y la sesión viaja en una cookie HttpOnly de la que solo se guarda el hash del token. Aun así, sigue pensada para uso local: no hay recuperación de contraseña, verificación de correo, limitación de intentos ni rotación de sesión, y `Secure` solo se activa bajo HTTPS.
 - El CORS se restringe mediante la variable `WEB_ORIGIN`.
 - Los documentos se limitan a **10 MiB** por solicitud.
 - El endurecimiento completo (OOXML/ODF robusto, fuzzing, auditoría exhaustiva) corresponde a la **Fase 8**.

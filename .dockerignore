@@ -1,6 +1,10 @@
 .git
-node_modules
+# Con dos asteriscos: "node_modules" a secas solo excluiría el de la raíz, y el
+# build fallaría al leer los de apps/ y packages/ en cuanto alguien instalara
+# las dependencias en local.
+**/node_modules
 target
+**/target
 release
 apps/api/data
 *.zip

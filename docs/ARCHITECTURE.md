@@ -13,7 +13,7 @@ flowchart TD
     API --> STORE["metadatos, archivos, versiones y colaboración"]
 ```
 
-## Capas vigentes en la Fase 2.4
+## Capas vigentes en la Fase 2.5
 
 ### `crates/office-core`
 
@@ -33,7 +33,7 @@ Interfaz React/Vite. Captura entrada, selección, portapapeles y manipulación d
 
 ### `apps/api`
 
-Servicio Go sin dependencias externas. Expone API REST y persiste cada documento de forma atómica. El contrato `Store` permitirá reemplazar disco local por PostgreSQL y almacenamiento de objetos.
+Servicio Go con una única dependencia externa: `golang.org/x/crypto`, para derivar contraseñas con Argon2id (ver [ADR 0009](adr/0009-accounts-and-sharing.md)). Expone API REST, autentica y autoriza cada petición, y persiste documentos, versiones, carpetas y cuentas de forma atómica. El contrato `Store` permitirá reemplazar disco local por PostgreSQL y almacenamiento de objetos.
 
 ## Flujo de recursos de imagen
 

@@ -7,8 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
@@ -196,7 +196,10 @@ func TestCompartirDaAccesoYElPermisoSeRespeta(t *testing.T) {
 	compartir.Body.Close()
 
 	// Beto ya lo ve...
-	lectura, _ := beto.Get(server.URL + "/api/v1/documents/" + doc.ID)
+	lectura, err := beto.Get(server.URL + "/api/v1/documents/" + doc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer lectura.Body.Close()
 	if lectura.StatusCode != http.StatusOK {
 		t.Fatalf("Beto debería poder leerlo, dio %d", lectura.StatusCode)
@@ -242,7 +245,10 @@ func TestLaPrimeraCuentaAdoptaLoQueNoTeniaDueno(t *testing.T) {
 	ana := newClient(t)
 	signUp(t, server, ana, "ana@ejemplo.com")
 
-	listado, _ := ana.Get(server.URL + "/api/v1/documents")
+	listado, err := ana.Get(server.URL + "/api/v1/documents")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer listado.Body.Close()
 	var payload struct {
 		Items []document.Summary `json:"items"`
@@ -255,7 +261,10 @@ func TestLaPrimeraCuentaAdoptaLoQueNoTeniaDueno(t *testing.T) {
 	// La segunda cuenta ya no adopta nada.
 	beto := newClient(t)
 	signUp(t, server, beto, "beto@ejemplo.com")
-	listado2, _ := beto.Get(server.URL + "/api/v1/documents")
+	listado2, err := beto.Get(server.URL + "/api/v1/documents")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer listado2.Body.Close()
 	var payload2 struct {
 		Items []document.Summary `json:"items"`

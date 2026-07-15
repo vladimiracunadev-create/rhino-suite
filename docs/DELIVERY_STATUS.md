@@ -1,6 +1,6 @@
 # Estado de la entrega
 
-**Entrega:** Fase 2.4 — revisión, impresión e intercambio inicial DOCX/ODT.
+**Entrega:** Fase 2.5 — unidad de archivos, cuentas y compartición.
 
 Implementado: schema v5, migración v1-v4, comentarios, respuestas, marcadores, hipervínculos, control de cambios, búsqueda estructurada, impresión paginada e importación/exportación inicial DOCX/ODT mediante ZIP/XML propios.
 
